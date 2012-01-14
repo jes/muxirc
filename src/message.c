@@ -10,12 +10,13 @@
 #include "str.h"
 
 char *command_string[] = {
-    "PASS", "NICK", "USER", "SERVER", "OPER", "QUIT",
+    "", "PASS", "NICK", "USER", "SERVER", "OPER", "QUIT",
     "SQUIT", "JOIN", "PART", "MODE", "TOPIC", "NAMES", "LIST",
     "INVITE", "KICK", "VERSION", "STATS", "LINKS", "TIME",
     "CONNECT", "TRACE", "ADMIN", "INFO", "PRIVMSG", "NOTICE",
     "AWAY", "REHASH", "RESTART", "SUMMON", "USERS", "WALLOPS",
-    "USERHOST", "ISON", NULL
+    "USERHOST", "ISON",
+    NULL
 };
 
 /* allocate an empty Message */
@@ -45,6 +46,10 @@ void free_message(Message *m) {
 Message *parse_message(const char *line) {
     const char *p = line;
     Message *m = new_message();
+
+    /* accept empty messages */
+    if(*line == '\r' || *line == '\n')
+        return m;
 
     if(parse_prefix(&p, m) != 0)
         goto cleanup;
@@ -122,12 +127,12 @@ int parse_command(const char **line, Message *m) {
         /* textual command */
         int i;
         int commandlen = strcspn(*line, " ");
-        for(i = 0; i < NCOMMANDS; i++) {
+        for(i = 0; command_string[i]; i++) {
             if(strncmp(*line, command_string[i], commandlen) == 0)
                 break;
         }
 
-        if(i == NCOMMANDS) /* no commands matched */
+        if(!command_string[i]) /* no commands matched */
             return -1;
 
         m->command = i;
