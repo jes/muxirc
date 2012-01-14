@@ -22,6 +22,7 @@ enum {
     CMD_AWAY, CMD_REHASH, CMD_RESTART, CMD_SUMMON, CMD_USERS, CMD_WALLOPS,
     CMD_USERHOST, CMD_ISON,
     NCOMMANDS,
+    ERR_NEEDMOREPARAMS=461
 };
 
 extern char *command_string[];

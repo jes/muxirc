@@ -8,9 +8,15 @@
 
 typedef struct Client {
     int fd;
-    char *name;
-    struct sockaddr_storage addr;
+    char registered;
+    char disconnected;
     struct Client *prev, *next;
 } Client;
+
+void init_client_handlers(void);
+Client *new_client(void);
+void free_client(Client *c);
+Client *prepend_client(Client *c, Client **list);
+int handle_client_message(Client *c, const struct Message *m);
 
 #endif

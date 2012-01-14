@@ -5,6 +5,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "message.h"
 #include "str.h"
@@ -170,4 +171,43 @@ int parse_params(const char **line, Message *m) {
 void skip_space(const char **p) {
     while(**p == ' ')
         (*p)++;
+}
+
+/* send the given message to the given socket */
+int send_message(int fd, Message *m) {
+    char line[513] = "";
+    char command[8];
+    char *endptr = line;
+
+    if(m->nick) {
+        strappend(line, &endptr, 510, ":");
+        strappend(line, &endptr, 510, m->nick);
+        if(m->user) {
+            strappend(line, &endptr, 510, "!");
+            strappend(line, &endptr, 510, m->user);
+        }
+        if(m->host) {
+            strappend(line, &endptr, 510, "@");
+            strappend(line, &endptr, 510, m->host);
+        }
+
+        strappend(line, &endptr, 510, " ");
+    }
+
+    if(m->command > NCOMMANDS) {
+        snprintf(command, 8, "%03d", m->command);
+        strappend(line, &endptr, 510, command);
+    } else {
+        strappend(line, &endptr, 510, command_string[m->command]);
+    }
+
+    int i;
+    for(i = 0; i < m->nparams; i++) {
+        strappend(line, &endptr, 510, " ");
+        strappend(line, &endptr, 510, m->param[i]);
+    }
+
+    strappend(line, &endptr, 512, "\r\n");
+
+    return write(fd, line, endptr - line) < 0 ? -1 : 0;
 }
