@@ -154,7 +154,7 @@ int parse_params(const char **line, Message *m) {
 
         /* consume to end of line if this parameter begins with ":" */
         if(**line == ':')
-            paramlen = strcspn(*line, "\r\n");
+            paramlen = strcspn(*(++line), "\r\n");
         else
             paramlen = strcspn(*line, " \r\n");
 
@@ -204,10 +204,14 @@ int send_message(int fd, Message *m) {
     int i;
     for(i = 0; i < m->nparams; i++) {
         strappend(line, &endptr, 510, " ");
+        if(i == m->nparams-1 && strchr(m->param[i], ' '))
+            strappend(line, &endptr, 510, ":");
         strappend(line, &endptr, 510, m->param[i]);
     }
 
     strappend(line, &endptr, 512, "\r\n");
+
+    printf("%s", line);
 
     return write(fd, line, endptr - line) < 0 ? -1 : 0;
 }

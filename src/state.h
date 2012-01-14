@@ -8,7 +8,7 @@
 
 typedef struct State {
     int fd;
-    char *nick;
+    const char *nick;
     struct Channel *channel_list;
 } State;
 
