@@ -34,13 +34,39 @@ void free_message(Message *m) {
     free(m->nick);
     free(m->user);
     free(m->host);
+    free_message_params(m);
+    free(m);
+}
 
+/* free the parameters for the message */
+void free_message_params(Message *m) {
     int i;
+
     for(i = 0; i < m->nparams; i++)
         free(m->param[i]);
     free(m->param);
 
-    free(m);
+    m->nparams = 0;
+    m->param = NULL;
+}
+
+/* add a parameter to m containing s (NOT a copy), and return m
+ * ** NOTE: this means that calling free_message_params will free s so
+ * ** make sure you give a copy of s if that is necessary!
+ */
+Message *add_message_param(Message *m, char *s) {
+    m->nparams++;
+
+    /* if the new parameter count is a power of two, double the size to
+     * allow more parameters
+     */
+    if((m->nparams & (m->nparams - 1)) == 0) {
+        m->param = realloc(m->param, m->nparams * 2 * sizeof(char *));
+    }
+
+    m->param[m->nparams - 1] = s;
+
+    return m;
 }
 
 /* return a Message structure representing the line, or NULL if a parse error
@@ -160,9 +186,7 @@ int parse_params(const char **line, Message *m) {
         else
             paramlen = strcspn(*line, " \r\n");
 
-        m->nparams++;
-        m->param = realloc(m->param, m->nparams * sizeof(char *));
-        m->param[m->nparams - 1] = strprefix(*line, paramlen);
+        add_message_param(m, strprefix(*line, paramlen));
         *line += paramlen + 1;
     }
 

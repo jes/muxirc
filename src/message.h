@@ -29,6 +29,8 @@ extern char *command_string[];
 
 Message *new_message(void);
 void free_message(Message *m);
+void free_message_params(Message *m);
+Message *add_message_param(Message *m, char *s);
 Message *parse_message(const char *line);
 int parse_prefix(const char **line, Message *m);
 int parse_command(const char **line, Message *m);

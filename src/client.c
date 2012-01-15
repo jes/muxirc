@@ -15,16 +15,10 @@ typedef int(*ClientMessageHandler)(Client *, const Message *);
 
 static ClientMessageHandler message_handler[NCOMMANDS];
 
-static int handler_ignore(Client *, const Message *);
 static int handler_join(Client *, const Message *);
 
+/* initialise handler functions for client messages */
 void init_client_handlers(void) {
-    int i;
-
-    /* by default, do nothing for all commands */
-    for(i = 0; i < NCOMMANDS; i++)
-        message_handler[i] = handler_ignore;
-
     message_handler[CMD_JOIN] = handler_join;
 }
 
@@ -74,9 +68,7 @@ static int send_error_message(Client *c, int error, ...) {
 
     m->nick = strdup("muxirc");
     m->command = error;
-    m->nparams = 1;
-    m->param = malloc(sizeof(char*));
-    m->param[0] = strdup(state.nick);
+    add_message_param(m, strdup(state.nick));
 
     va_start(argp, error);
 
@@ -87,9 +79,7 @@ static int send_error_message(Client *c, int error, ...) {
         if(!s)
             break;
 
-        m->nparams++;
-        m->param = realloc(m->param, sizeof(char*));
-        m->param[m->nparams - 1] = strdup(s);
+        add_message_param(m, strdup(s));
     }
 
     va_end(argp);
@@ -100,14 +90,13 @@ static int send_error_message(Client *c, int error, ...) {
     return r;
 }
 
-/* handle a message from the given client */
+/* handle a message from the given client (ignore any invalid ones) */
 int handle_client_message(Client *c, const Message *m) {
-    return message_handler[m->command](c, m);
-}
-
-/* ignore the message by doing nothing and returning success */
-static int handler_ignore(Client *c, const Message *m) {
-    return 0;
+    if(m->command >= 0 && m->command < NCOMMANDS
+            && message_handler[m->command])
+        return message_handler[m->command](c, m);
+    else
+        return 0;
 }
 
 /* join the channel */
