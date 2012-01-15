@@ -34,5 +34,6 @@ int parse_prefix(const char **line, Message *m);
 int parse_command(const char **line, Message *m);
 int parse_params(const char **line, Message *m);
 void skip_space(const char **p);
+int send_message(int fd, const Message *m);
 
 #endif

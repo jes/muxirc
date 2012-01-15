@@ -14,4 +14,7 @@ typedef struct State {
 
 extern State state;
 
+void irc_connect(const char *server, const char *port, const char *username,
+        const char *realname, const char *nick);
+
 #endif

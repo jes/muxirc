@@ -45,7 +45,9 @@ void free_client(Client *c) {
     free(c);
 }
 
-/* prepend a client to the list pointed to by list, and point list to c */
+/* prepend a client to the list pointed to by list, point list to c,
+ * and return the new head
+ */
 Client *prepend_client(Client *c, Client **list) {
     if(*list) {
         if((*list)->prev)
@@ -59,6 +61,8 @@ Client *prepend_client(Client *c, Client **list) {
     }
 
     *list = c;
+
+    return *list;
 }
 
 /* send an error message to the given client, in the form:
@@ -98,7 +102,7 @@ static int send_error_message(Client *c, int error, ...) {
 
 /* handle a message from the given client */
 int handle_client_message(Client *c, const Message *m) {
-    message_handler[m->command](c, m);
+    return message_handler[m->command](c, m);
 }
 
 /* ignore the message by doing nothing and returning success */

@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
+#include <unistd.h>
 
 #include "message.h"
 #include "str.h"
@@ -174,7 +176,7 @@ void skip_space(const char **p) {
 }
 
 /* send the given message to the given socket */
-int send_message(int fd, Message *m) {
+int send_message(int fd, const Message *m) {
     char line[513] = "";
     char command[8];
     char *endptr = line;
