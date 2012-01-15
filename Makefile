@@ -3,7 +3,7 @@
 
 CFLAGS=-Wall -g
 LDFLAGS=
-OBJS=src/channel.o src/client.o src/message.o src/muxirc.o src/state.o \
+OBJS=src/channel.o src/client.o src/message.o src/muxirc.o src/server.o \
 	 src/str.o
 
 .PHONY: all

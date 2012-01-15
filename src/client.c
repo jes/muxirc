@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "state.h"
+#include "server.h"
 #include "message.h"
 #include "client.h"
 
@@ -59,23 +59,41 @@ Client *prepend_client(Client *c, Client **list) {
     return *list;
 }
 
-/* send an error message to the given client, in the form:
- *  :muxirc <error> <nick> <params...>
+/* send the given string to the given client; if len >= 0 it should contain
+ * the length of str, otherwise strlen(str) is used to obtain the length
  */
-static int send_error_message(Client *c, int error, ...) {
+int send_client_string(Client *c, const char *str, ssize_t len) {
+    return c->error = send_string(c->fd, str, len);
+}
+
+/* send the given message to the given client, and update the client error
+ * state
+ */
+int send_client_message(Client *c, Message *m) {
+    return c->error = send_message(c->fd, m);
+}
+
+/* send a message to the given client, in the form:
+ *  :muxirc <command> <params...>
+ */
+int send_client_messagev(Client *c, const char *nick, const char *user,
+        const char *host, int command, ...) {
     va_list argp;
     Message *m = new_message();
 
-    m->nick = strdup("muxirc");
-    m->command = error;
-    add_message_param(m, strdup(state.nick));
+    if(nick)
+        m->nick = strdup(nick);
+    if(user)
+        m->user = strdup(user);
+    if(host)
+        m->host = strdup(host);
+    m->command = command;
 
-    va_start(argp, error);
+    va_start(argp, command);
 
     char *s;
     while(1) {
         s = va_arg(argp, char *);
-
         if(!s)
             break;
 
@@ -84,7 +102,7 @@ static int send_error_message(Client *c, int error, ...) {
 
     va_end(argp);
 
-    int r = send_message(c->fd, m);
+    int r = send_client_message(c, m);
     free_message(m);
 
     return r;
@@ -102,8 +120,9 @@ int handle_client_message(Client *c, const Message *m) {
 /* join the channel */
 static int handler_join(Client *c, const Message *m) {
     if(m->nparams < 1)
-        return send_error_message(c, ERR_NEEDMOREPARAMS, "JOIN",
+        return send_client_messagev(c, "muxirc", NULL, NULL,
+                ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",
                 ":Not enough parameters", NULL);
     else
-        return send_message(state.fd, m);
+        return send_server_message(c->server, m);
 }

@@ -60,9 +60,8 @@ Message *add_message_param(Message *m, char *s) {
     /* if the new parameter count is a power of two, double the size to
      * allow more parameters
      */
-    if((m->nparams & (m->nparams - 1)) == 0) {
+    if((m->nparams & (m->nparams - 1)) == 0)
         m->param = realloc(m->param, m->nparams * 2 * sizeof(char *));
-    }
 
     m->param[m->nparams - 1] = s;
 
@@ -199,45 +198,67 @@ void skip_space(const char **p) {
         (*p)++;
 }
 
-/* send the given message to the given socket */
-int send_message(int fd, const Message *m) {
-    char line[513] = "";
-    char command[8];
+/* allocate a 513-byte buffer containing the stringified message, \r\n and a
+ * nul byte, storing the full length of text (including \r\n) in *length if
+ * length is not NULL
+ */
+char *strmessage(const Message *m, size_t *length) {
+    char *line = malloc(513);
     char *endptr = line;
 
     if(m->nick) {
-        strappend(line, &endptr, 510, ":");
-        strappend(line, &endptr, 510, m->nick);
+        strappend(line, &endptr, 511, ":");
+        strappend(line, &endptr, 511, m->nick);
         if(m->user) {
-            strappend(line, &endptr, 510, "!");
-            strappend(line, &endptr, 510, m->user);
+            strappend(line, &endptr, 511, "!");
+            strappend(line, &endptr, 511, m->user);
         }
         if(m->host) {
-            strappend(line, &endptr, 510, "@");
-            strappend(line, &endptr, 510, m->host);
+            strappend(line, &endptr, 511, "@");
+            strappend(line, &endptr, 511, m->host);
         }
 
-        strappend(line, &endptr, 510, " ");
+        strappend(line, &endptr, 511, " ");
     }
 
     if(m->command > NCOMMANDS) {
         snprintf(command, 8, "%03d", m->command);
-        strappend(line, &endptr, 510, command);
+        strappend(line, &endptr, 511, command);
     } else {
-        strappend(line, &endptr, 510, command_string[m->command]);
+        strappend(line, &endptr, 511, command_string[m->command]);
     }
 
     int i;
     for(i = 0; i < m->nparams; i++) {
-        strappend(line, &endptr, 510, " ");
+        strappend(line, &endptr, 511, " ");
         if(i == m->nparams-1 && strchr(m->param[i], ' '))
-            strappend(line, &endptr, 510, ":");
-        strappend(line, &endptr, 510, m->param[i]);
+            strappend(line, &endptr, 511, ":");
+        strappend(line, &endptr, 511, m->param[i]);
     }
 
-    strappend(line, &endptr, 512, "\r\n");
+    strappend(line, &endptr, 513, "\r\n");
 
-    printf("%s", line);
+    if(length)
+        *length = endptr - line;
+}
 
-    return write(fd, line, endptr - line) < 0 ? -1 : 0;
+/* send the given string to the given socket, returning -1 on error and 0
+ * on success; if len >= 0 it should contain the length of str, otherwise
+ * strlen(str) will be used
+ */
+int send_string(int fd, const char *str, ssize_t len) {
+    return write(fd, str, len) < 0 ? -1 : 0;
+}
+
+/* send the given message to the given socket, returning -1 on error and 0
+ * on success
+ */
+int send_message(int fd, const Message *m) {
+    size_t length;
+    char *msg = strmessage(m, &length);
+
+    ssize_t r = send_string(fd, msg, length);
+
+    free(msg);
+    return r;
 }

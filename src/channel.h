@@ -7,11 +7,14 @@
 #define CHANNEL_H_INC
 
 typedef struct Channel {
+    char *name;
+    int state;
     int nclients;
     struct Client **client;
-    char *name;
     struct Channel *prev, *next;
 } Channel;
+
+enum { CHAN_JOINING, CHAN_JOINED };
 
 Channel *new_channel(void);
 
