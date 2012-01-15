@@ -8,8 +8,8 @@
 
 #include "message.h"
 #include "client.h"
-#include "channel.h"
 #include "server.h"
+#include "channel.h"
 
 /* allocate a new empty channel */
 Channel *new_channel(void) {
@@ -19,7 +19,16 @@ Channel *new_channel(void) {
 }
 
 /* remove the given channel from it's list (if any) and free it */
-void free_channel(Channel *c) {
+void free_channel(Channel *chan) {
+    free(chan->name);
+    free(chan->client);
+
+    if(chan->prev)
+        chan->prev->next = chan->next;
+    if(chan->next)
+        chan->next->prev = chan->prev;
+
+    free(chan);
 }
 
 /* prepend a client to the list pointed to by list, point list to c,
@@ -49,10 +58,11 @@ Channel *add_channel_client(Channel *chan, Client *c) {
     /* if the new client count is a power of two, double the size to
      * allow more clients
      */
-    if((m->nclients & (m->nclients - 1)) == 0)
-        m->client = realloc(m->client, m->nclients * 2 * sizeof(Client *));
+    if((chan->nclients & (chan->nclients - 1)) == 0)
+        chan->client = realloc(chan->client,
+                chan->nclients * 2 * sizeof(Client *));
 
-    m->client[m->nclients - 1] = c;
+    chan->client[chan->nclients - 1] = c;
 
     return chan;
 }
@@ -78,13 +88,16 @@ void client_join_channel(Client *c, const char *channel) {
     if(!chan) {
         chan = new_channel();
         chan->name = strdup(channel);
-        prepend_channel(chan, &(s->channel_list));
+        prepend_channel(chan, &(c->server->channel_list));
         chan->state = CHAN_JOINING;
 
         send_server_messagev(c->server, CMD_JOIN, channel, NULL);
     }
 
-    /* if we are already in the channel, tell the client */
+    /* add this client to the channel, whatever state it is in */
+    add_channel_client(chan, c);
+
+    /* if we are already in the channel, inform the client */
     if(chan->state == CHAN_JOINED)
         send_client_messagev(c, c->server->nick, c->server->user,
                 c->server->host, CMD_JOIN, channel);
@@ -95,7 +108,7 @@ void client_join_channel(Client *c, const char *channel) {
  * if available (if not, set it to NULL and an appropriate message will be
  * created instead)
  */
-void joined_channel(Server *s, const char *channel, Message *m) {
+void joined_channel(Server *s, const char *channel, const Message *m) {
     Channel *chan = lookup_channel(s->channel_list, channel);
 
     /* if the channel does not exist, make it
@@ -114,16 +127,20 @@ void joined_channel(Server *s, const char *channel, Message *m) {
 
     /* construct a JOIN message if we were not given one */
     if(!m) {
-        m = new_message();
-        m->nick = s->nick;
-        m->user = s->user;
-        m->host = s->host;
-        m->command = CMD_JOIN;
-        add_message_param(m, strdup(channel));
+        Message *msg = new_message();
+        msg->nick = strdup(s->nick);
+        if(s->user)
+            msg->user = strdup(s->user);
+        if(s->host)
+            msg->host = strdup(s->host);
+        msg->command = CMD_JOIN;
+        add_message_param(msg, strdup(channel));
 
+        strmsg = strmessage(msg, &msglen);
+
+        free_message(msg);
+    } else {
         strmsg = strmessage(m, &msglen);
-
-        free_message(m);
     }
 
     int i;
@@ -131,4 +148,19 @@ void joined_channel(Server *s, const char *channel, Message *m) {
         send_client_string(chan->client[i], strmsg, msglen);
 
     free(strmsg);
+}
+
+/* send a string to all clients in the channel */
+void send_channel_string(Channel *chan, const char *str, ssize_t len) {
+    int i;
+    for(i = 0; i < chan->nclients; i++)
+        send_client_string(chan->client[i], str, len);
+}
+
+/* send a message to all clients in this channel */
+void send_channel_message(Channel *chan, const Message *m) {
+    size_t msglen;
+    char *strmsg = strmessage(m, &msglen);
+
+    send_channel_string(chan, strmsg, msglen);
 }

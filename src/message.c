@@ -203,6 +203,7 @@ void skip_space(const char **p) {
  * length is not NULL
  */
 char *strmessage(const Message *m, size_t *length) {
+    char command[16];
     char *line = malloc(513);
     char *endptr = line;
 
@@ -240,6 +241,8 @@ char *strmessage(const Message *m, size_t *length) {
 
     if(length)
         *length = endptr - line;
+
+    return line;
 }
 
 /* send the given string to the given socket, returning -1 on error and 0

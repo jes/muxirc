@@ -19,8 +19,9 @@ Client *new_client(void);
 void free_client(Client *c);
 Client *prepend_client(Client *c, Client **list);
 int send_client_string(Client *c, const char *str, ssize_t len);
-int send_client_message(Client *c, Message *m);
-int send_client_messagev(Client *c, int command, ...);
+int send_client_message(Client *c, const struct Message *m);
+int send_client_messagev(Client *c, const char *nick, const char *user,
+        const char *host, int command, ...);
 int handle_client_message(Client *c, const struct Message *m);
 
 #endif

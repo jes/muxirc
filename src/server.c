@@ -11,26 +11,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 #include "message.h"
 #include "server.h"
+#include "client.h"
+#include "channel.h"
 
 typedef int(*ServerMessageHandler)(Server *, const Message *);
 
 static ServerMessageHandler message_handler[NCOMMANDS];
 
-static int handler_join(Server *, const Message *);
-
-Server serverstate;
+static int handle_join(Server *, const Message *);
 
 /* initialise handler functions for server messages */
 void init_server_handlers(void) {
-    message_handler[CMD_JOIN] = handler_join;
+    message_handler[CMD_JOIN] = handle_join;
 }
 
 /* connect to irc and initialise the server state */
-void irc_connect(const char *server, const char *port, const char *username,
-        const char *realname, const char *nick) {
+void irc_connect(Server *s, const char *server, const char *port,
+        const char *username, const char *realname, const char *nick) {
     struct addrinfo hints, *servinfo, *p;
     int n;
     int fd;
@@ -69,9 +70,13 @@ void irc_connect(const char *server, const char *port, const char *username,
 
     freeaddrinfo(servinfo);
 
-    serverstate.fd = fd;
-    serverstate.nick = nick;
-    serverstate.channel_list = NULL;
+    s->fd = fd;
+    s->error = 0;
+    s->nick = nick;
+    s->user = username;
+    s->host = NULL;
+    s->channel_list = NULL;
+    s->client_list = NULL;
 
     Message *m = new_message();
     m->param = malloc(4 * sizeof(char *));
@@ -118,7 +123,7 @@ int send_server_string(Server *s, const char *str, ssize_t len) {
 /* send the given message to the given server, and update the server error
  * state
  */
-int send_server_message(Server *s, Message *m) {
+int send_server_message(Server *s, const Message *m) {
     return s->error = send_message(s->fd, m);
 }
 
@@ -175,9 +180,19 @@ int handle_server_message(Server *s, const Message *m) {
 }
 
 /* handle a join message by telling all clients about the join, and joining it
- * if the joiner is us.
+ * if the joiner is us; return 0 on success and -1 on error
  */
 int handle_join(Server *s, const Message *m) {
-    if(m->nparams > 0 && strnickcmp(m->nick, s->nick) == 0)
-        joined_channel(m->param[0]);
+    /* fail if there are too few parameters or there is no nick */
+    if(!m->nick || m->nparams == 0)
+        return -1;
+
+    if(strcasecmp(m->nick, s->nick) == 0) {
+        joined_channel(s, m->param[0], m);
+    } else {
+        Channel *chan = lookup_channel(s->channel_list, m->param[0]);
+        send_channel_message(chan, m);
+    }
+
+    return 0;
 }

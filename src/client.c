@@ -7,19 +7,19 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "server.h"
 #include "message.h"
+#include "server.h"
 #include "client.h"
 
 typedef int(*ClientMessageHandler)(Client *, const Message *);
 
 static ClientMessageHandler message_handler[NCOMMANDS];
 
-static int handler_join(Client *, const Message *);
+static int handle_join(Client *, const Message *);
 
 /* initialise handler functions for client messages */
 void init_client_handlers(void) {
-    message_handler[CMD_JOIN] = handler_join;
+    message_handler[CMD_JOIN] = handle_join;
 }
 
 /* return a new empty client */
@@ -69,7 +69,7 @@ int send_client_string(Client *c, const char *str, ssize_t len) {
 /* send the given message to the given client, and update the client error
  * state
  */
-int send_client_message(Client *c, Message *m) {
+int send_client_message(Client *c, const Message *m) {
     return c->error = send_message(c->fd, m);
 }
 
@@ -118,7 +118,7 @@ int handle_client_message(Client *c, const Message *m) {
 }
 
 /* join the channel */
-static int handler_join(Client *c, const Message *m) {
+static int handle_join(Client *c, const Message *m) {
     if(m->nparams < 1)
         return send_client_messagev(c, "muxirc", NULL, NULL,
                 ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",

@@ -12,12 +12,14 @@
 #include "server.h"
 
 int main() {
+    Server serverstate;
+
     init_client_handlers();
     init_server_handlers();
 
     /* TODO: take these from arguments */
-    irc_connect("irc.freenode.net", "6667", "muxirc", "IRC Multiplexer",
-            "muxirc");
+    irc_connect(&serverstate, "irc.freenode.net", "6667", "muxirc",
+            "IRC Multiplexer", "muxirc");
 
     while(1) {
         struct pollfd fd[1];
