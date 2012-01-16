@@ -4,6 +4,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "message.h"
@@ -110,6 +111,8 @@ void client_join_channel(Client *c, const char *channel) {
  */
 void joined_channel(Server *s, const char *channel, const Message *m) {
     Channel *chan = lookup_channel(s->channel_list, channel);
+
+    fprintf(stderr, "Joined channel %s\n", channel);
 
     /* if the channel does not exist, make it
      * TODO: should this just instantly part instead?

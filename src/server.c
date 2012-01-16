@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #include "message.h"
 #include "server.h"
@@ -75,6 +76,7 @@ void irc_connect(Server *s, const char *server, const char *port,
     s->nick = nick;
     s->user = username;
     s->host = NULL;
+    s->bytes = 0;
     s->channel_list = NULL;
     s->client_list = NULL;
 
@@ -91,7 +93,7 @@ void irc_connect(Server *s, const char *server, const char *port,
     m->command = CMD_USER;
     m->nparams = 4;
     m->param[0] = strdup(username);
-    m->param[1] = strdup("hostname");/* TODO: this */
+    m->param[1] = strdup("localhost");
     m->param[2] = strdup(server);
     m->param[3] = strdup(realname);
     send_message(fd, m);
@@ -156,6 +158,52 @@ int send_server_messagev(Server *s, int command, ...) {
     return r;
 }
 
+/* handle data from the server by splitting it up and handling any lines that
+ * are received
+ */
+void handle_server_data(Server *s) {
+    ssize_t r;
+
+    /* keep reading until it is successful or the error is no EINTR */
+    while((r = read(s->fd, s->buf + s->bytes, 1024 - s->bytes)) < 0)
+        if(errno != EINTR)
+            break;
+
+    /* put the server in the error state if it disconnects or there is an
+     * error
+     */
+    if(r <= 0) {
+        perror("read");
+        s->error = 1;
+        return;
+    }
+
+    s->bytes += r;
+    s->buf[s->bytes] = '\0';
+
+    char *p, *str = s->buf;
+    /* while there are endlines, handle data */
+    while((p = strpbrk(str, "\r\n"))) {
+        char c = *p;
+        *p = '\0';
+
+        /* parse and handle the message */
+        Message *m = parse_message(str);
+        if(m) {
+            handle_server_message(s, m);
+            free_message(m);
+        }
+
+        *p = c;
+
+        /* advance past the endline characters */
+        str = p + strspn(p, "\r\n");
+    }
+
+    /* move any left-over data to the start of the buffer */
+    s->bytes -= str - s->buf;
+    memmove(s->buf, str, s->bytes);
+}
 
 /* handle a message from the server (ignore any invalid ones) */
 int handle_server_message(Server *s, const Message *m) {
@@ -170,6 +218,12 @@ int handle_server_message(Server *s, const Message *m) {
                 s->host = m->host;
         }
     }
+
+    if(m->command >= FIRST_CMD && m->command < NCOMMANDS)
+        fprintf(stderr, "handled server message: %s\n",
+                command_string[m->command - FIRST_CMD]);
+    else
+        fprintf(stderr, "handled server message: %03d\n", m->command);
 
     /* call the handler if there is one, otherwise just ignore the message */
     if(m->command >= 0 && m->command < NCOMMANDS

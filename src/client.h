@@ -18,6 +18,7 @@ void init_client_handlers(void);
 Client *new_client(void);
 void free_client(Client *c);
 Client *prepend_client(Client *c, Client **list);
+void disconnect_client(Client *c);
 int send_client_string(Client *c, const char *str, ssize_t len);
 int send_client_message(Client *c, const struct Message *m);
 int send_client_messagev(Client *c, const char *nick, const char *user,

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <unistd.h>
 
 #include "message.h"
 #include "server.h"
@@ -26,6 +27,7 @@ void init_client_handlers(void) {
 Client *new_client(void) {
     Client *c = malloc(sizeof(Client));
     memset(c, 0, sizeof(Client));
+    c->fd = -1;
     return c;
 }
 
@@ -57,6 +59,12 @@ Client *prepend_client(Client *c, Client **list) {
     *list = c;
 
     return *list;
+}
+
+/* disconnect, remove and free this client */
+void disconnect_client(Client *c) {
+    close(c->fd);
+    free_client(c);
 }
 
 /* send the given string to the given client; if len >= 0 it should contain

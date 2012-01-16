@@ -13,7 +13,7 @@
 #include "str.h"
 
 char *command_string[] = {
-    "", "PASS", "NICK", "USER", "SERVER", "OPER", "QUIT",
+    "PASS", "NICK", "USER", "SERVER", "OPER", "QUIT",
     "SQUIT", "JOIN", "PART", "MODE", "TOPIC", "NAMES", "LIST",
     "INVITE", "KICK", "VERSION", "STATS", "LINKS", "TIME",
     "CONNECT", "TRACE", "ADMIN", "INFO", "PRIVMSG", "NOTICE",
@@ -163,7 +163,7 @@ int parse_command(const char **line, Message *m) {
         if(!command_string[i]) /* no commands matched */
             return -1;
 
-        m->command = i;
+        m->command = FIRST_CMD + i;
         *line += commandlen;
     }
 
@@ -188,6 +188,10 @@ int parse_params(const char **line, Message *m) {
         add_message_param(m, strprefix(*line, paramlen));
         *line += paramlen + 1;
     }
+
+    /* eat the \r\n */
+    while(**line == '\r' || **line == '\n')
+        (*line)++;
 
     return 0;
 }
@@ -226,7 +230,7 @@ char *strmessage(const Message *m, size_t *length) {
         snprintf(command, 8, "%03d", m->command);
         strappend(line, &endptr, 511, command);
     } else {
-        strappend(line, &endptr, 511, command_string[m->command]);
+        strappend(line, &endptr, 511, command_string[m->command - FIRST_CMD]);
     }
 
     int i;
