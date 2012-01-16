@@ -254,7 +254,14 @@ char *strmessage(const Message *m, size_t *length) {
  * strlen(str) will be used
  */
 int send_string(int fd, const char *str, ssize_t len) {
-    return write(fd, str, len) < 0 ? -1 : 0;
+    ssize_t r;
+
+    /* keep trying while EINTR */
+    while((r = write(fd, str, len)) < 0)
+        if(r != EINTR)
+            break;
+
+    return r < 0 ? -1 : 0;
 }
 
 /* send the given message to the given socket, returning -1 on error and 0
