@@ -90,7 +90,7 @@ int send_client_message(Client *c, const Message *m) {
 }
 
 /* send a message to the given client, in the form:
- *  :muxirc <command> <params...>
+ *  :nick!user@host <command> <params...>
  */
 int send_client_messagev(Client *c, const char *nick, const char *user,
         const char *host, int command, ...) {
@@ -158,7 +158,7 @@ int handle_client_message(Client *c, const Message *m) {
 /* join the channel */
 static int handle_join(Client *c, const Message *m) {
     if(m->nparams < 1)
-        return send_client_messagev(c, "muxirc", NULL, NULL,
+        return send_client_messagev(c, c->server->host, NULL, NULL,
                 ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",
                 "Not enough parameters", NULL);
     else

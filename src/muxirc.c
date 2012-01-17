@@ -30,7 +30,8 @@ void fatal(Server *s, const char *prefix, const char *msg) {
     s->serverfd = -1;
 
     m = new_message();
-    m->nick = strdup("muxirc");
+    if(s->host)
+        m->nick = strdup(s->host);
     m->command = CMD_ERROR;
     add_message_param(m, strdup(text));
 

@@ -237,9 +237,9 @@ int handle_server_message(Server *s, const Message *m) {
     if((!s->user || !s->host) && m->nick && s->nick
             && strcasecmp(m->nick, s->nick) == 0) {
         if(m->user)
-            s->user = m->user;
+            s->user = strdup(m->user);
         if(m->host)
-            s->host = m->host;
+            s->host = strdup(m->host);
     }
 
     if(m->command >= FIRST_CMD && m->command < NCOMMANDS)

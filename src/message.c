@@ -162,10 +162,11 @@ int parse_command(const char **line, Message *m) {
                 break;
         }
 
-        if(!command_string[i]) /* no commands matched */
-            return -1;
+        if(command_string[i])
+            m->command = FIRST_CMD + i;
+        else
+            m->command = CMD_INVALID;
 
-        m->command = FIRST_CMD + i;
         *line += commandlen;
     }
 
