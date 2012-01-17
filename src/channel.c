@@ -105,12 +105,18 @@ int client_join_channel(Client *c, const char *channel) {
     /* add this client to the channel, whatever state it is in */
     add_channel_client(chan, c);
 
-    /* if we are already in the channel, inform the client */
-    if(chan->state == CHAN_JOINED)
-        return send_client_messagev(c, c->server->nick, c->server->user,
-                c->server->host, CMD_JOIN, channel, NULL);
-    else
+    /* if we haven't joined yet, don't do anything else */
+    if(chan->state != CHAN_JOINED)
         return 0;
+
+    /* TODO: mark this client as requesting topic and names for this
+     * channel
+     */
+    send_server_messagev(c->server, CMD_TOPIC, channel, NULL);
+    send_server_messagev(c->server, CMD_NAMES, channel, NULL);
+
+    return send_client_messagev(c, c->server->nick, c->server->user,
+                c->server->host, CMD_JOIN, channel, NULL);
 }
 
 /* mark the channel with the given name as successfully joined and tell all
