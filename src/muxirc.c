@@ -57,7 +57,10 @@ int main() {
     irc_connect(&serverstate, "localhost", "6667", "muxirc",
             "IRC Multiplexer", "muxirc", "10000");
 
-    /* silence valgrind */
+    /* silence valgrind (strspn uses SSE instructions which compare more bytes
+     * than strictly necessary so it looks like a branch depends on
+     * uninitialised memory when all is well)
+     */
     memset(serverstate.buf, 0, sizeof(serverstate.buf));
 
     while(1) {
