@@ -151,10 +151,13 @@ void handle_client_data(Client *c) {
 /* handle a message from the given client (ignore any invalid ones) */
 int handle_client_message(Client *c, const Message *m) {
     if(m->command >= 0 && m->command < NCOMMANDS
-            && message_handler[m->command])
+            && message_handler[m->command]) {
         return message_handler[m->command](c, m);
-    else
+    } else {
+        /* pass on un-handled messages */
+        send_server_message(c->server, m);
         return 0;
+    }
 }
 
 /* join the channel */

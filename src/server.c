@@ -261,10 +261,13 @@ int handle_server_message(Server *s, const Message *m) {
 
     /* call the handler if there is one, otherwise just ignore the message */
     if(m->command >= 0 && m->command < NCOMMANDS
-            && message_handler[m->command])
+            && message_handler[m->command]) {
         return message_handler[m->command](s, m);
-    else
+    } else {
+        /* pass un-handled messages to all clients */
+        send_all_clients(s, m);
         return 0;
+    }
 }
 
 /* handle a join message by telling all clients about the join, and joining it
