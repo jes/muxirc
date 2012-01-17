@@ -31,17 +31,77 @@ void init_server_handlers(void) {
 }
 
 /* connect to irc and initialise the server state */
-void irc_connect(Server *s, const char *server, const char *port,
-        const char *username, const char *realname, const char *nick) {
+void irc_connect(Server *s, const char *server, const char *serverport,
+        const char *username, const char *realname, const char *nick,
+        const char *listenport) {
+    int yes = 1;
     struct addrinfo hints, *servinfo, *p;
     int n;
     int fd;
 
+    /* initialise all fields of s */
+    s->serverfd = -1;
+    s->listenfd = -1;
+    s->error = 0;
+    s->nick = nick;
+    s->user = username;
+    s->host = NULL;
+    s->bytes = 0;
+    s->channel_list = NULL;
+    s->client_list = NULL;
+
+    /* setup hints for the listening socket */
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    if((n = getaddrinfo(NULL, listenport, &hints, &servinfo))) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(n));
+        close(s->serverfd);
+        exit(1);
+    }
+
+    /* find somewhere to listen */
+    for(p = servinfo; p; p = p->ai_next) {
+        if((fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+            perror("socket");
+            continue;
+        }
+
+        /* complain but don't care if this fails */
+        if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
+            perror("setsockopt");
+
+        if(bind(fd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(fd);
+            perror("bind");
+            continue;
+        }
+
+        break;
+    }
+
+    freeaddrinfo(servinfo);
+
+    if(!p) {
+        fprintf(stderr, "error: failed to bind to port %s\n", listenport);
+        exit(1);
+    }
+
+    if(listen(fd, 5) == -1) {
+        perror("listen");
+        exit(1);
+    }
+
+    s->listenfd = fd;
+
+    /* now setup hints for the connecting socket */
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if((n = getaddrinfo(server, port, &hints, &servinfo)) != 0) {
+    if((n = getaddrinfo(server, serverport, &hints, &servinfo))) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(n));
         exit(1);
     }
@@ -63,23 +123,17 @@ void irc_connect(Server *s, const char *server, const char *port,
         break;
     }
 
+    freeaddrinfo(servinfo);
+
     if(!p) {
         fprintf(stderr, "error: failed to connect to %s:%s\n",
-                server, port);
+                server, serverport);
         exit(1);
     }
 
-    freeaddrinfo(servinfo);
-
     s->serverfd = fd;
-    s->error = 0;
-    s->nick = nick;
-    s->user = username;
-    s->host = NULL;
-    s->bytes = 0;
-    s->channel_list = NULL;
-    s->client_list = NULL;
 
+    /* now register with the server */
     /* TODO: Send PASS if necessary */
     send_server_messagev(s, CMD_NICK, nick, NULL);
     send_server_messagev(s, CMD_USER, username, "localhost", server, realname,
@@ -121,7 +175,6 @@ int send_server_messagev(Server *s, int command, ...) {
     va_list argp;
     Message *m = new_message();
 
-    m->nick = strdup("muxirc");
     m->command = command;
 
     va_start(argp, command);
@@ -143,52 +196,37 @@ int send_server_messagev(Server *s, int command, ...) {
     return r;
 }
 
+/* handle a new connection on the listening socket */
+void handle_new_connection(Server *s) {
+    int fd;
+    struct sockaddr_storage addr;
+    socklen_t addrsize = sizeof(addr);
+
+    /* if the acceptance fails for some reason, Keep Calm and Carry On */
+    if((fd = accept(s->listenfd, (struct sockaddr *)&addr, &addrsize)) == -1) {
+        perror("accept");
+        return;
+    }
+
+    printf("Got connection\n");
+
+    /* make a new client and add him to the list */
+    Client *c = new_client();
+    c->fd = fd;
+    c->server = s;
+    prepend_client(c, &(s->client_list));
+}
+
 /* handle data from the server by splitting it up and handling any lines that
  * are received
  */
 void handle_server_data(Server *s) {
-    ssize_t r;
+    printf("Handling server data\n");
 
-    /* keep reading until it is successful or the error is no EINTR */
-    while((r = read(s->serverfd, s->buf + s->bytes, 1024 - s->bytes)) < 0)
-        if(errno != EINTR)
-            break;
-
-    /* put the server in the error state if it disconnects or there is an
-     * error
-     */
-    if(r <= 0) {
-        if(r < 0)
-            perror("read");
-        s->error = 1;
-        return;
-    }
-
-    s->bytes += r;
-    s->buf[s->bytes] = '\0';
-
-    char *p, *str = s->buf;
-    /* while there are endlines, handle data */
-    while((p = strpbrk(str, "\r\n"))) {
-        char c = *p;
-        *p = '\0';
-
-        /* parse and handle the message */
-        Message *m = parse_message(str);
-        if(m) {
-            handle_server_message(s, m);
-            free_message(m);
-        }
-
-        *p = c;
-
-        /* advance past the endline characters */
-        str = p + strspn(p, "\r\n");
-    }
-
-    /* move any left-over data to the start of the buffer */
-    s->bytes -= str - s->buf;
-    memmove(s->buf, str, s->bytes);
+    /* read data into the buffer and handle messages if there is no error */
+    if((s->error = read_data(s->serverfd, s->buf, &(s->bytes), 1024)) == 0)
+        handle_messages(s->buf, &(s->bytes),
+                (GenericMessageHandler)handle_server_message, s);
 }
 
 /* handle a message from the server (ignore any invalid ones) */
@@ -196,13 +234,12 @@ int handle_server_message(Server *s, const Message *m) {
     /* set the user and host of the server state if it doesn't already
      * have one and the message does
      */
-    if(!s->user || !s->host) {
-        if(strcasecmp(m->nick, s->nick) == 0) {
-            if(m->user)
-                s->user = m->user;
-            if(m->host)
-                s->host = m->host;
-        }
+    if((!s->user || !s->host) && m->nick && s->nick
+            && strcasecmp(m->nick, s->nick) == 0) {
+        if(m->user)
+            s->user = m->user;
+        if(m->host)
+            s->host = m->host;
     }
 
     if(m->command >= FIRST_CMD && m->command < NCOMMANDS)

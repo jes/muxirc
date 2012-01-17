@@ -9,7 +9,8 @@
 typedef struct Client {
     int fd;
     int error;
-    char registered;
+    char buf[1024];
+    size_t bytes;
     struct Server *server;
     struct Client *prev, *next;
 } Client;
@@ -23,6 +24,8 @@ int send_client_string(Client *c, const char *str, ssize_t len);
 int send_client_message(Client *c, const struct Message *m);
 int send_client_messagev(Client *c, const char *nick, const char *user,
         const char *host, int command, ...);
+void handle_client_disconnect(Client *c);
+void handle_client_data(Client *c);
 int handle_client_message(Client *c, const struct Message *m);
 
 #endif

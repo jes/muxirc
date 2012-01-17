@@ -76,14 +76,20 @@ Channel *lookup_channel(Channel *list, const char *channel) {
 
     for(chan = list;
         chan && strcasecmp(chan->name, channel) != 0;
-        chan = chan->next);
+        chan = chan->next)
+        printf("  channel not %s!\n", chan->name);
 
     return chan;
 }
 
-/* attempt to add c to the channel with the given name */
-void client_join_channel(Client *c, const char *channel) {
+/* attempt to add c to the channel with the given name; return 0 on
+ * successfully informing the client that he is joined (or not having to), and
+ * non-zero on failure
+ */
+int client_join_channel(Client *c, const char *channel) {
     Channel *chan = lookup_channel(c->server->channel_list, channel);
+
+    printf("Attempting to join %s\n", channel);
 
     /* if the channel doesn't exist yet, ask to join it */
     if(!chan) {
@@ -100,8 +106,10 @@ void client_join_channel(Client *c, const char *channel) {
 
     /* if we are already in the channel, inform the client */
     if(chan->state == CHAN_JOINED)
-        send_client_messagev(c, c->server->nick, c->server->user,
+        return send_client_messagev(c, c->server->nick, c->server->user,
                 c->server->host, CMD_JOIN, channel);
+    else
+        return 0;
 }
 
 /* mark the channel with the given name as successfully joined and tell all
@@ -118,12 +126,18 @@ void joined_channel(Server *s, const char *channel, const Message *m) {
      * TODO: should this just instantly part instead?
      */
     if(!chan) {
+        printf("chan no existe!\n");
         chan = new_channel();
         chan->name = strdup(channel);
         prepend_channel(chan, &(s->channel_list));
     }
 
     chan->state = CHAN_JOINED;
+
+    /* don't bother constructing a message if there are no clients */
+    /* TODO: should we instantly part instead? */
+    if(chan->nclients == 0)
+        return;
 
     char *strmsg;
     size_t msglen;

@@ -55,10 +55,14 @@ int main() {
 
     /* TODO: take these from arguments */
     irc_connect(&serverstate, "localhost", "6667", "muxirc",
-            "IRC Multiplexer", "muxirc");
+            "IRC Multiplexer", "muxirc", "10000");
+
+    /* silence valgrind */
+    memset(serverstate.buf, 0, sizeof(serverstate.buf));
 
     while(1) {
-        struct pollfd fd[1];
+        struct pollfd fd[16];
+        Client *client[16];
         int i = 0;
 
         /* fd[0] - connection to server */
@@ -66,8 +70,28 @@ int main() {
         fd[i].events = POLLIN;
         fd[i].revents = 0;
         i++;
-        /* TODO: fd[1] - listening socket */
-        /* TODO: fd[2..] - connections to clients */
+        /* fd[1] - listening socket */
+        fd[i].fd = serverstate.listenfd;
+        fd[i].events = POLLIN;
+        fd[i].revents = 0;
+        i++;
+        /* fd[2..] - connections to clients */
+        Client *c;
+        for(c = serverstate.client_list; c; c = c->next) {
+            fd[i].fd = c->fd;
+            fd[i].events = POLLIN;
+            fd[i].revents = 0;
+            client[i] = c;
+            i++;
+            if(i >= 16) {
+                /* TODO: make this not happen (dynamically resize fd[]) */
+                fprintf(stderr, "warning: excessively many clients; "
+                        "ignoring some!\n");
+                break;
+            }
+        }
+
+        printf("Polling %d fds\n", i);
 
         int n = poll(fd, i, -1);
 
@@ -81,6 +105,22 @@ int main() {
                 handle_server_data(&serverstate);
             if(fd[0].revents & POLLHUP)
                 fatal(&serverstate, "muxirc", "upstream disconnect (hup)");
+
+            /* connection to listening socket */
+            if(fd[1].revents & POLLIN)
+                handle_new_connection(&serverstate);
+            if(fd[1].revents & POLLHUP)
+                fatal(&serverstate, "muxirc", "Help! POLLHUP on listening "
+                        "socket! What does that mean? What is a socket???");
+
+            /* data/disconnections from clients */
+            int j;
+            for(j = 2; j < i; j++) {
+                if(fd[j].revents & POLLIN)
+                    handle_client_data(client[j]);
+                if(fd[j].revents & POLLHUP)
+                    handle_client_disconnect(client[j]);
+            }
         }
 
         /* check server for errors */
@@ -88,7 +128,7 @@ int main() {
             fatal(&serverstate, "muxirc", "upstream disconnect (error)");
 
         /* check clients for errors */
-        Client *c, *c_next;
+        Client *c_next;
         for(c = serverstate.client_list; c; c = c_next) {
             c_next = c->next;
 

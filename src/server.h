@@ -13,18 +13,20 @@ typedef struct Server {
     const char *nick;
     const char *user;
     const char *host;
-    char buf[1025];
+    char buf[1024];
     size_t bytes;
     struct Channel *channel_list;
     struct Client *client_list;
 } Server;
 
 void init_server_handlers(void);
-void irc_connect(Server *s, const char *server, const char *port,
-        const char *username, const char *realname, const char *nick);
+void irc_connect(Server *s, const char *server, const char *serverport,
+        const char *username, const char *realname, const char *nick,
+        const char *listenport);
 int send_server_string(Server *s, const char *str, ssize_t len);
 int send_server_message(Server *s, const struct Message *m);
 int send_server_messagev(Server *s, int command, ...);
+void handle_new_connection(Server *s);
 void handle_server_data(Server *s);
 int handle_server_message(Server *s, const struct Message *m);
 

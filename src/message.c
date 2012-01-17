@@ -157,7 +157,8 @@ int parse_command(const char **line, Message *m) {
         int i;
         int commandlen = strcspn(*line, " ");
         for(i = 0; command_string[i]; i++) {
-            if(strncmp(*line, command_string[i], commandlen) == 0)
+            if(commandlen == strlen(command_string[i])
+                    && strncmp(*line, command_string[i], commandlen) == 0)
                 break;
         }
 
@@ -227,7 +228,7 @@ char *strmessage(const Message *m, size_t *length) {
         strappend(line, &endptr, 511, " ");
     }
 
-    if(m->command > NCOMMANDS) {
+    if(m->command < FIRST_CMD || m->command >= NCOMMANDS) {
         snprintf(command, 8, "%03d", m->command);
         strappend(line, &endptr, 511, command);
     } else {
@@ -276,4 +277,63 @@ int send_message(int fd, const Message *m) {
 
     free(msg);
     return r;
+}
+
+/* read data from the file descriptor, appending it to the buffer, updating
+ * *bufused to indicate how much is now used, and without going over the buflen
+ * limit; return 0 on success and -1 on error
+ */
+int read_data(int fd, char *buf, size_t *bufused, size_t buflen) {
+    ssize_t r;
+
+    /* keep reading until it is successful or the error is not EINTR */
+    while((r = read(fd, buf + *bufused, buflen - 1 - *bufused)) < 0)
+        if(errno != EINTR)
+            break;
+
+    /* return an error if there is an error */
+    if(r <= 0) {
+        if(r < 0)
+            perror("read");
+        return -1;
+    }
+
+    /* update *bufused and nul-terminate buf */
+    *bufused += r;
+    buf[*bufused] = '\0';
+
+    printf("Read: %s", buf);
+
+    return 0;
+}
+
+/* handle messages from the string by parsing them and passing them to the
+ * handler function, and removing all data that was handled (moving anything
+ * left over to the start of buf)
+ */
+void handle_messages(char *buf, size_t *bufused, GenericMessageHandler handle,
+        void *data) {
+    char *p, *str = buf;
+
+    /* while there are endlines, handle data */
+    while((p = strpbrk(str, "\r\n"))) {
+        char c = *p;
+        *p = '\0';
+
+        /* parse and handle the message */
+        Message *m = parse_message(str);
+        if(m) {
+            handle(data, m);
+            free_message(m);
+        }
+
+        *p = c;
+
+        /* advance past the endline characters */
+        str = p + strspn(p, "\r\n");
+    }
+
+    /* move any left-over data to the start of the buffer */
+    *bufused -= str - buf;
+    memmove(buf, str, *bufused + 1);
 }

@@ -13,6 +13,8 @@ typedef struct Message {
     int nparams;
 } Message;
 
+typedef int(*GenericMessageHandler)(void *, const Message *);
+
 enum {
     CMD_NONE=0,
     ERR_NEEDMOREPARAMS=461,
@@ -41,5 +43,8 @@ void skip_space(const char **p);
 char *strmessage(const Message *m, size_t *length);
 int send_string(int fd, const char *str, ssize_t len);
 int send_message(int fd, const Message *m);
+int read_data(int fd, char *buf, size_t *bufused, size_t buflen);
+void handle_messages(char *buf, size_t *bufused, GenericMessageHandler handler,
+        void *data);
 
 #endif

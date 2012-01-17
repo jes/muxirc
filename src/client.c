@@ -11,6 +11,7 @@
 #include "message.h"
 #include "server.h"
 #include "client.h"
+#include "channel.h"
 
 typedef int(*ClientMessageHandler)(Client *, const Message *);
 
@@ -64,6 +65,13 @@ Client *prepend_client(Client *c, Client **list) {
 /* disconnect, remove and free this client */
 void disconnect_client(Client *c) {
     close(c->fd);
+
+    /* if this is the first client in the list, point the list at the next
+     * client
+     */
+    if(c->server->client_list == c)
+        c->server->client_list = c->next;
+
     free_client(c);
 }
 
@@ -116,6 +124,28 @@ int send_client_messagev(Client *c, const char *nick, const char *user,
     return r;
 }
 
+/* handle a disconnection by a client by leaving any channels that client is
+ * the sole client for, removing him from the list of clients, and freeing him
+ */
+void handle_client_disconnect(Client *c) {
+    /* TODO: leave any channels he is the sole client for */
+
+    printf("Handling client disconnect\n");
+
+    close(c->fd);
+    free_client(c);
+}
+
+/* read from the client and deal with the messages */
+void handle_client_data(Client *c) {
+    printf("Handling client data\n");
+
+    /* read data into the buffer and handle messages if there is no error */
+    if((c->error = read_data(c->fd, c->buf, &(c->bytes), 1024)) == 0)
+        handle_messages(c->buf, &(c->bytes),
+                (GenericMessageHandler)handle_client_message, c);
+}
+
 /* handle a message from the given client (ignore any invalid ones) */
 int handle_client_message(Client *c, const Message *m) {
     if(m->command >= 0 && m->command < NCOMMANDS
@@ -130,7 +160,7 @@ static int handle_join(Client *c, const Message *m) {
     if(m->nparams < 1)
         return send_client_messagev(c, "muxirc", NULL, NULL,
                 ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",
-                ":Not enough parameters", NULL);
+                "Not enough parameters", NULL);
     else
-        return send_server_message(c->server, m);
+        return client_join_channel(c, m->param[0]);
 }
