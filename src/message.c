@@ -184,12 +184,14 @@ int parse_params(const char **line, Message *m) {
 
         /* consume to end of line if this parameter begins with ":" */
         if(**line == ':')
-            paramlen = strcspn(*(++line), "\r\n");
+            paramlen = strcspn(++(*line), "\r\n");
         else
             paramlen = strcspn(*line, " \r\n");
 
         add_message_param(m, strprefix(*line, paramlen));
-        *line += paramlen + 1;
+
+        *line += paramlen;
+        skip_space(line);
     }
 
     /* eat the \r\n */

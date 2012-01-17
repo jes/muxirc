@@ -107,7 +107,7 @@ int client_join_channel(Client *c, const char *channel) {
     /* if we are already in the channel, inform the client */
     if(chan->state == CHAN_JOINED)
         return send_client_messagev(c, c->server->nick, c->server->user,
-                c->server->host, CMD_JOIN, channel);
+                c->server->host, CMD_JOIN, channel, NULL);
     else
         return 0;
 }

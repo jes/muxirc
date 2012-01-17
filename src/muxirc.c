@@ -25,7 +25,7 @@ void fatal(Server *s, const char *prefix, const char *msg) {
 
     snprintf(text, 512, "%s: %s", prefix, msg);
 
-    send_server_messagev(s, CMD_QUIT, text);
+    send_server_messagev(s, CMD_QUIT, text, NULL);
     close(s->serverfd);
     s->serverfd = -1;
 
