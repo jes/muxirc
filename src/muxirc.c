@@ -30,10 +30,7 @@ void fatal(Server *s, const char *prefix, const char *msg) {
     s->serverfd = -1;
 
     m = new_message();
-    if(s->host)
-        m->nick = strdup(s->host);
-    m->command = CMD_NOTICE;
-    add_message_param(m, strdup(s->nick));
+    m->command = CMD_ERROR;
     add_message_param(m, strdup(text));
 
     size_t msglen;
@@ -99,6 +96,7 @@ int main() {
         printf("Polling %d fds\n", i);
 
         int n = poll(fd, i, -1);
+        usleep(50000);
 
         if(n == -1) {
             fatal(&serverstate, "muxirc: poll", strerror(errno));
@@ -124,7 +122,7 @@ int main() {
                 if(fd[j].revents & POLLIN)
                     handle_client_data(client[j]);
                 if(fd[j].revents & POLLHUP)
-                    handle_client_disconnect(client[j]);
+                    disconnect_client(client[j]);
             }
         }
 

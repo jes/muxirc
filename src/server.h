@@ -13,6 +13,8 @@ typedef struct Server {
     char *nick;
     char *user;
     char *host;
+    int nwelcomes;
+    char **welcome_line;
     char buf[1024];
     size_t bytes;
     struct Channel *channel_list;

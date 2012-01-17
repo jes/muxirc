@@ -20,7 +20,7 @@ char *command_string[] = {
     "CONNECT", "TRACE", "ADMIN", "INFO", "PRIVMSG", "NOTICE",
     "WHO", "WHOIS", "WHOWAS", "KILL", "PING", "PONG", "ERROR",
     "AWAY", "REHASH", "RESTART", "SUMMON", "USERS", "WALLOPS",
-    "USERHOST", "ISON",
+    "USERHOST", "ISON", "CAP",
     NULL
 };
 
@@ -159,7 +159,7 @@ int parse_command(const char **line, Message *m) {
         int commandlen = strcspn(*line, " ");
         for(i = 0; command_string[i]; i++) {
             if(commandlen == strlen(command_string[i])
-                    && strncmp(*line, command_string[i], commandlen) == 0)
+                    && strncasecmp(*line, command_string[i], commandlen) == 0)
                 break;
         }
 
@@ -267,6 +267,9 @@ char *strmessage(const Message *m, size_t *length) {
  */
 int send_string(int fd, const char *str, ssize_t len) {
     ssize_t r;
+
+    if(len < 0)
+        len = strlen(str);
 
     printf("Sending: ##%s##\n", str);
 

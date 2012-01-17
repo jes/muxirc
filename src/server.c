@@ -23,13 +23,21 @@ typedef int(*ServerMessageHandler)(Server *, const Message *);
 
 static ServerMessageHandler message_handler[NCOMMANDS];
 
+static int handle_ignore(Server *, const Message *);
 static int handle_join(Server *, const Message *);
 static int handle_nick(Server *, const Message *);
+static int handle_welcome(Server *, const Message *);
 
 /* initialise handler functions for server messages */
 void init_server_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
     message_handler[CMD_NICK] = handle_nick;
+    message_handler[CMD_CAP] = handle_ignore;
+    message_handler[RPL_WELCOME] = handle_welcome;
+    message_handler[RPL_YOURHOST] = handle_welcome;
+    message_handler[RPL_CREATED] = handle_welcome;
+    message_handler[RPL_MYINFO] = handle_welcome;
+    message_handler[RPL_ISUPPORT] = handle_welcome;
 }
 
 /* connect to irc and initialise the server state */
@@ -48,6 +56,8 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     s->nick = strdup(nick);
     s->user = NULL;
     s->host = NULL;
+    s->nwelcomes = 0;
+    s->welcome_line = NULL;
     s->bytes = 0;
     s->channel_list = NULL;
     s->client_list = NULL;
@@ -270,10 +280,15 @@ int handle_server_message(Server *s, const Message *m) {
     }
 }
 
+/* ignore this message */
+static int handle_ignore(Server *s, const Message *m) {
+    return 0;
+}
+
 /* handle a join message by telling all clients about the join, and joining it
  * if the joiner is us; return 0 on success and -1 on error
  */
-int handle_join(Server *s, const Message *m) {
+static int handle_join(Server *s, const Message *m) {
     /* fail if there are too few parameters or there is no nick */
     if(!m->nick || m->nparams == 0)
         return -1;
@@ -291,7 +306,7 @@ int handle_join(Server *s, const Message *m) {
 /* handle a nick message by telling all clients about the nick, and changing
  * our nick if the old one was us
  */
-int handle_nick(Server *s, const Message *m) {
+static int handle_nick(Server *s, const Message *m) {
     /* fail if there are too few parameters or there is no nick */
     if(!m->nick || m->nparams == 0)
         return -1;
@@ -306,6 +321,19 @@ int handle_nick(Server *s, const Message *m) {
         free(s->nick);
         s->nick = strdup(m->param[0]);
     }
+
+    return 0;
+}
+
+/* handle a welcome message by appending it to the buffer and sending it to
+ * any existing clients
+ */
+static int handle_welcome(Server *s, const Message *m) {
+    s->nwelcomes++;
+    s->welcome_line = realloc(s->welcome_line, s->nwelcomes * sizeof(char *));
+    s->welcome_line[s->nwelcomes - 1] = strmessage(m, NULL);
+
+    send_all_clients(s, m);
 
     return 0;
 }

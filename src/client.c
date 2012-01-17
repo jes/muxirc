@@ -18,15 +18,21 @@ typedef int(*ClientMessageHandler)(Client *, const Message *);
 
 static ClientMessageHandler message_handler[NCOMMANDS];
 
+static int handle_ignore(Client *, const Message *);
 static int handle_join(Client *, const Message *);
 static int handle_nick(Client *, const Message *);
+static int handle_user(Client *, const Message *);
 static int handle_privmsg(Client *, const Message *);
+static int handle_quit(Client *, const Message *);
 
 /* initialise handler functions for client messages */
 void init_client_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
     message_handler[CMD_NICK] = handle_nick;
+    message_handler[CMD_USER] = handle_user;
     message_handler[CMD_PRIVMSG] = handle_privmsg;
+    message_handler[CMD_QUIT] = handle_quit;
+    message_handler[CMD_CAP] = handle_ignore;
 }
 
 /* return a new empty client */
@@ -69,6 +75,8 @@ Client *prepend_client(Client *c, Client **list) {
 
 /* disconnect, remove and free this client */
 void disconnect_client(Client *c) {
+    /* TODO: remove any channels he is the sole member of */
+
     close(c->fd);
 
     /* if this is the first client in the list, point the list at the next
@@ -129,18 +137,6 @@ int send_client_messagev(Client *c, const char *nick, const char *user,
     return r;
 }
 
-/* handle a disconnection by a client by leaving any channels that client is
- * the sole client for, removing him from the list of clients, and freeing him
- */
-void handle_client_disconnect(Client *c) {
-    /* TODO: leave any channels he is the sole client for */
-
-    printf("Handling client disconnect\n");
-
-    close(c->fd);
-    free_client(c);
-}
-
 /* read from the client and deal with the messages */
 void handle_client_data(Client *c) {
     printf("Handling client data\n");
@@ -161,6 +157,11 @@ int handle_client_message(Client *c, const Message *m) {
         send_server_message(c->server, m);
         return 0;
     }
+}
+
+/* ignore this message */
+static int handle_ignore(Client *c, const Message *m) {
+    return 0;
 }
 
 /* join the channel */
@@ -197,6 +198,17 @@ static int handle_nick(Client *c, const Message *m) {
     }
 }
 
+/* tell the client the welcome messages */
+static int handle_user(Client *c, const Message *m) {
+    int i;
+
+    for(i = 0; i < c->server->nwelcomes; i++)
+        if(send_client_string(c, c->server->welcome_line[i], -1))
+            break;
+
+    return i != c->server->nwelcomes;
+}
+
 /* handle private messages by forwarding them to the server and to other
  * clients that are in the same channel
  */
@@ -219,5 +231,13 @@ static int handle_privmsg(Client *c, const Message *m) {
     /* always forward the message to the server */
     send_server_message(c->server, m);
 
+    return 0;
+}
+
+/* disconnect this client (actually just put it in the error state so that it
+ * is disconnected at the next opportunity)
+ */
+static int handle_quit(Client *c, const Message *m) {
+    c->error = 1;
     return 0;
 }
