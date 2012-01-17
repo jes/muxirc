@@ -10,6 +10,7 @@ typedef struct Client {
     int fd;
     int error;
     char buf[1024];
+    int gotnick;
     size_t bytes;
     struct Server *server;
     struct Client *prev, *next;

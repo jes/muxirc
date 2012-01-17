@@ -18,10 +18,12 @@ typedef int(*ClientMessageHandler)(Client *, const Message *);
 static ClientMessageHandler message_handler[NCOMMANDS];
 
 static int handle_join(Client *, const Message *);
+static int handle_nick(Client *, const Message *);
 
 /* initialise handler functions for client messages */
 void init_client_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
+    message_handler[CMD_NICK] = handle_nick;
 }
 
 /* return a new empty client */
@@ -163,4 +165,25 @@ static int handle_join(Client *c, const Message *m) {
                 "Not enough parameters", NULL);
     else
         return client_join_channel(c, m->param[0]);
+}
+
+/* change our nick unless this is the first NICK sent by this client, in which
+ * case change his nick
+ */
+static int handle_nick(Client *c, const Message *m) {
+    if(m->nparams < 1)
+        return send_client_messagev(c, c->server->host, NULL, NULL,
+                ERR_NEEDMOREPARAMS, c->server->nick, "NICK",
+                "Not enough parameters", NULL);
+
+    if(c->gotnick) {
+        /* TODO: attempt to actually change nick */
+        return 0;
+    } else {
+        /* inform the client about what his nick really is */
+        c->gotnick = 1;
+
+        return send_client_messagev(c, m->param[0], NULL, NULL, CMD_NICK,
+                c->server->nick, NULL);
+    }
 }
