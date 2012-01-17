@@ -140,6 +140,15 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     send_server_messagev(s, CMD_NICK, nick, NULL);
     send_server_messagev(s, CMD_USER, username, "localhost", server, realname,
             NULL);
+
+    /* TODO: Something that will reliably cause us to be told our user and
+     * host so that it will get set (send us a pm?). We need to give the
+     * server long enough to decide whether or not our nick is taken though.
+     * Perhaps waiting for any of:
+     *  1.) A 001 (RPL_WELCOME) message (success)
+     *  2.) 5 seconds to pass (assume success)
+     *  3.) A 433 (ERR_NICKNAMEINUSE) message (failure)
+     */
 }
 
 /* send the given message to all clients */
