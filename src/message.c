@@ -18,6 +18,7 @@ char *command_string[] = {
     "SQUIT", "JOIN", "PART", "MODE", "TOPIC", "NAMES", "LIST",
     "INVITE", "KICK", "VERSION", "STATS", "LINKS", "TIME",
     "CONNECT", "TRACE", "ADMIN", "INFO", "PRIVMSG", "NOTICE",
+    "WHO", "WHOIS", "WHOWAS", "KILL", "PING", "PONG", "ERROR",
     "AWAY", "REHASH", "RESTART", "SUMMON", "USERS", "WALLOPS",
     "USERHOST", "ISON",
     NULL
