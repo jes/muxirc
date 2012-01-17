@@ -7,7 +7,8 @@
 #define STATE_H_INC
 
 typedef struct Server {
-    int fd;
+    int serverfd;
+    int listenfd;
     int error;
     const char *nick;
     const char *user;

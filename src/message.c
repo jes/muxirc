@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "message.h"
 #include "str.h"

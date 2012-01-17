@@ -26,8 +26,8 @@ void fatal(Server *s, const char *prefix, const char *msg) {
     snprintf(text, 512, "%s: %s", prefix, msg);
 
     send_server_messagev(s, CMD_QUIT, text);
-    close(s->fd);
-    s->fd = -1;
+    close(s->serverfd);
+    s->serverfd = -1;
 
     m = new_message();
     m->nick = strdup("muxirc");
@@ -62,7 +62,7 @@ int main() {
         int i = 0;
 
         /* fd[0] - connection to server */
-        fd[i].fd = serverstate.fd;
+        fd[i].fd = serverstate.serverfd;
         fd[i].events = POLLIN;
         fd[i].revents = 0;
         i++;

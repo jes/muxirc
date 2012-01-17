@@ -71,7 +71,7 @@ void irc_connect(Server *s, const char *server, const char *port,
 
     freeaddrinfo(servinfo);
 
-    s->fd = fd;
+    s->serverfd = fd;
     s->error = 0;
     s->nick = nick;
     s->user = username;
@@ -80,25 +80,10 @@ void irc_connect(Server *s, const char *server, const char *port,
     s->channel_list = NULL;
     s->client_list = NULL;
 
-    Message *m = new_message();
-    m->param = malloc(4 * sizeof(char *));
-
     /* TODO: Send PASS if necessary */
-    m->command = CMD_NICK;
-    m->nparams = 1;
-    m->param[0] = strdup(nick);
-    send_message(fd, m);
-    free(m->param[0]);
-
-    m->command = CMD_USER;
-    m->nparams = 4;
-    m->param[0] = strdup(username);
-    m->param[1] = strdup("localhost");
-    m->param[2] = strdup(server);
-    m->param[3] = strdup(realname);
-    send_message(fd, m);
-
-    free_message(m);
+    send_server_messagev(s, CMD_NICK, nick, NULL);
+    send_server_messagev(s, CMD_USER, username, "localhost", server, realname,
+            NULL);
 }
 
 /* send the given message to all clients */
@@ -119,14 +104,14 @@ int send_all_clients(Server *s, const Message *m) {
  * the length of str, otherwise strlen(str) is used to obtain the length
  */
 int send_server_string(Server *s, const char *str, ssize_t len) {
-    return s->error = send_string(s->fd, str, len);
+    return s->error = send_string(s->serverfd, str, len);
 }
 
 /* send the given message to the given server, and update the server error
  * state
  */
 int send_server_message(Server *s, const Message *m) {
-    return s->error = send_message(s->fd, m);
+    return s->error = send_message(s->serverfd, m);
 }
 
 /* send a message to the given server, in the form:
@@ -165,7 +150,7 @@ void handle_server_data(Server *s) {
     ssize_t r;
 
     /* keep reading until it is successful or the error is no EINTR */
-    while((r = read(s->fd, s->buf + s->bytes, 1024 - s->bytes)) < 0)
+    while((r = read(s->serverfd, s->buf + s->bytes, 1024 - s->bytes)) < 0)
         if(errno != EINTR)
             break;
 
@@ -173,7 +158,8 @@ void handle_server_data(Server *s) {
      * error
      */
     if(r <= 0) {
-        perror("read");
+        if(r < 0)
+            perror("read");
         s->error = 1;
         return;
     }
