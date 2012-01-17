@@ -163,10 +163,12 @@ int parse_command(const char **line, Message *m) {
                 break;
         }
 
-        if(command_string[i])
+        if(command_string[i]) {
             m->command = FIRST_CMD + i;
-        else
+        } else {
             m->command = CMD_INVALID;
+            add_message_param(m, strprefix(*line, commandlen));
+        }
 
         *line += commandlen;
     }
@@ -233,14 +235,18 @@ char *strmessage(const Message *m, size_t *length) {
     }
 
     if(m->command < FIRST_CMD || m->command >= NCOMMANDS) {
-        snprintf(command, 8, "%03d", m->command);
-        strappend(line, &endptr, 511, command);
+        if(m->command == CMD_INVALID) {
+            strappend(line, &endptr, 511, m->param[0]);
+        } else {
+            snprintf(command, 8, "%03d", m->command);
+            strappend(line, &endptr, 511, command);
+        }
     } else {
         strappend(line, &endptr, 511, command_string[m->command - FIRST_CMD]);
     }
 
     int i;
-    for(i = 0; i < m->nparams; i++) {
+    for(i = (m->command == CMD_INVALID); i < m->nparams; i++) {
         strappend(line, &endptr, 511, " ");
         if(i == m->nparams-1 && strchr(m->param[i], ' '))
             strappend(line, &endptr, 511, ":");

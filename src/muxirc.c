@@ -56,7 +56,7 @@ int main() {
     init_server_handlers();
 
     /* TODO: take these from arguments */
-    irc_connect(&serverstate, "localhost", "6667", "muxirc",
+    irc_connect(&serverstate, "irc.freenode.net", "6667", "muxirc",
             "IRC Multiplexer", "muxirc", "10000");
 
     /* silence valgrind (strspn uses SSE instructions which compare more bytes
