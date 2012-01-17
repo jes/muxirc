@@ -32,7 +32,8 @@ void fatal(Server *s, const char *prefix, const char *msg) {
     m = new_message();
     if(s->host)
         m->nick = strdup(s->host);
-    m->command = CMD_ERROR;
+    m->command = CMD_NOTICE;
+    add_message_param(m, strdup(s->nick));
     add_message_param(m, strdup(text));
 
     size_t msglen;
