@@ -9,12 +9,17 @@
 typedef struct Client {
     int fd;
     int error;
+    int motd_state;
     char buf[1024];
     int gotnick;
     size_t bytes;
     struct Server *server;
     struct Client *prev, *next;
 } Client;
+
+enum {
+    MOTD_HAPPY=0, MOTD_WANT, MOTD_READING
+};
 
 void init_client_handlers(void);
 Client *new_client(void);

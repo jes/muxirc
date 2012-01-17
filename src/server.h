@@ -10,6 +10,7 @@ typedef struct Server {
     int serverfd;
     int listenfd;
     int error;
+    int motd_state;
     char *nick;
     char *user;
     char *host;

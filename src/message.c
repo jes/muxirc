@@ -20,7 +20,7 @@ char *command_string[] = {
     "CONNECT", "TRACE", "ADMIN", "INFO", "PRIVMSG", "NOTICE",
     "WHO", "WHOIS", "WHOWAS", "KILL", "PING", "PONG", "ERROR",
     "AWAY", "REHASH", "RESTART", "SUMMON", "USERS", "WALLOPS",
-    "USERHOST", "ISON", "CAP",
+    "USERHOST", "ISON", "CAP", "MOTD",
     NULL
 };
 

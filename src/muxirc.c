@@ -138,5 +138,23 @@ int main() {
             if(c->error)
                 disconnect_client(c);
         }
+
+        /* if the server isn't busy reading a motd and some clients want one,
+         * request one and update the server motd state
+         */
+        if(serverstate.motd_state == MOTD_HAPPY) {
+            for(c = serverstate.client_list; c; c = c->next) {
+                if(c->motd_state == MOTD_WANT) {
+                    send_server_messagev(&serverstate, CMD_MOTD, NULL);
+                    serverstate.motd_state = MOTD_WANT;
+                    break;
+                }
+
+                if(c->motd_state == MOTD_READING) {
+                    fprintf(stderr, "consistency failure: client in "
+                            "MOTD_READING state while server in MOTD_HAPPY\n");
+                }
+            }
+        }
     }
 }

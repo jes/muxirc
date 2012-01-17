@@ -27,6 +27,7 @@ static int handle_ignore(Server *, const Message *);
 static int handle_join(Server *, const Message *);
 static int handle_nick(Server *, const Message *);
 static int handle_welcome(Server *, const Message *);
+static int handle_motd(Server *, const Message *);
 
 /* initialise handler functions for server messages */
 void init_server_handlers(void) {
@@ -38,6 +39,9 @@ void init_server_handlers(void) {
     message_handler[RPL_CREATED] = handle_welcome;
     message_handler[RPL_MYINFO] = handle_welcome;
     message_handler[RPL_ISUPPORT] = handle_welcome;
+    message_handler[RPL_MOTDSTART] = handle_motd;
+    message_handler[RPL_MOTD] = handle_motd;
+    message_handler[RPL_ENDOFMOTD] = handle_motd;
 }
 
 /* connect to irc and initialise the server state */
@@ -53,6 +57,7 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     s->serverfd = -1;
     s->listenfd = -1;
     s->error = 0;
+    s->motd_state = MOTD_HAPPY;
     s->nick = strdup(nick);
     s->user = NULL;
     s->host = NULL;
@@ -334,6 +339,34 @@ static int handle_welcome(Server *s, const Message *m) {
     s->welcome_line[s->nwelcomes - 1] = strmessage(m, NULL);
 
     send_all_clients(s, m);
+
+    return 0;
+}
+
+/* handle motd-related messages by forwarding them to appropriate clients */
+static int handle_motd(Server *s, const Message *m) {
+    Client *c;
+
+    for(c = s->client_list; c; c = c->next) {
+        if(s->motd_state == MOTD_HAPPY
+                || (s->motd_state == MOTD_WANT && c->motd_state == MOTD_WANT)
+                || (c->motd_state == MOTD_READING)) {
+            /* update the client motd state */
+            if(c->motd_state == MOTD_WANT)
+                c->motd_state = MOTD_READING;
+            if(m->command == RPL_ENDOFMOTD)
+                c->motd_state = MOTD_HAPPY;
+
+            /* forward the message */
+            send_client_message(c, m);
+        }
+    }
+
+    /* update the server motd state */
+    if(s->motd_state == MOTD_WANT)
+        s->motd_state = MOTD_READING;
+    if(m->command == RPL_ENDOFMOTD)
+        s->motd_state = MOTD_HAPPY;
 
     return 0;
 }

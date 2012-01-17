@@ -206,6 +206,12 @@ static int handle_user(Client *c, const Message *m) {
         if(send_client_string(c, c->server->welcome_line[i], -1))
             break;
 
+    /* find out the user modes */
+    send_server_messagev(c->server, CMD_MODE, c->server->nick, NULL);
+
+    /* request an MOTD for this client */
+    c->motd_state = MOTD_WANT;
+
     return i != c->server->nwelcomes;
 }
 
