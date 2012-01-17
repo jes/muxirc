@@ -142,6 +142,12 @@ int main() {
         /* if the server isn't busy reading a motd and some clients want one,
          * request one and update the server motd state
          */
+        /* TODO: what happens to a client who makes 2 requests for MOTD before
+         * the first one is done? he should get it sent twice; this is more
+         * important for things like TOPIC and NAMES
+         * need to cache the MOTD replies as they are rate-limited (on
+         * freenode at least)
+         */
         if(serverstate.motd_state == MOTD_HAPPY) {
             for(c = serverstate.client_list; c; c = c->next) {
                 if(c->motd_state == MOTD_WANT) {
