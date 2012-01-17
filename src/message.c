@@ -262,6 +262,8 @@ char *strmessage(const Message *m, size_t *length) {
 int send_string(int fd, const char *str, ssize_t len) {
     ssize_t r;
 
+    printf("Sending: ##%s##\n", str);
+
     /* keep trying while EINTR */
     while((r = write(fd, str, len)) < 0)
         if(r != EINTR)

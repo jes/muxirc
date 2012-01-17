@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include "message.h"
 #include "client.h"
@@ -168,16 +169,51 @@ void joined_channel(Server *s, const char *channel, const Message *m) {
 }
 
 /* send a string to all clients in the channel */
-void send_channel_string(Channel *chan, const char *str, ssize_t len) {
+void send_channel_string(Channel *chan, Client *except, const char *str,
+        ssize_t len) {
     int i;
     for(i = 0; i < chan->nclients; i++)
-        send_client_string(chan->client[i], str, len);
+        if(chan->client[i] != except)
+            send_client_string(chan->client[i], str, len);
 }
 
 /* send a message to all clients in this channel */
-void send_channel_message(Channel *chan, const Message *m) {
+void send_channel_message(Channel *chan, Client *except, const Message *m) {
     size_t msglen;
     char *strmsg = strmessage(m, &msglen);
 
-    send_channel_string(chan, strmsg, msglen);
+    send_channel_string(chan, except, strmsg, msglen);
+}
+
+/* send a message to the given channel, in the form:
+ *  :nick!user@host <command> <params...>
+ */
+void send_channel_messagev(Channel *chan, Client *except, const char *nick,
+        const char *user, const char *host, int command, ...) {
+    va_list argp;
+    Message *m = new_message();
+
+    if(nick)
+        m->nick = strdup(nick);
+    if(user)
+        m->user = strdup(user);
+    if(host)
+        m->host = strdup(host);
+    m->command = command;
+
+    va_start(argp, command);
+
+    char *s;
+    while(1) {
+        s = va_arg(argp, char *);
+        if(!s)
+            break;
+
+        add_message_param(m, strdup(s));
+    }
+
+    va_end(argp);
+
+    send_channel_message(chan, except, m);
+    free_message(m);
 }

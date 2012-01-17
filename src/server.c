@@ -282,7 +282,7 @@ int handle_join(Server *s, const Message *m) {
         joined_channel(s, m->param[0], m);
     } else {
         Channel *chan = lookup_channel(s->channel_list, m->param[0]);
-        send_channel_message(chan, m);
+        send_channel_message(chan, NULL, m);
     }
 
     return 0;

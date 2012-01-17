@@ -23,7 +23,10 @@ Channel *add_channel_client(Channel *chan, Client *c);
 Channel *lookup_channel(Channel *list, const char *channel);
 int client_join_channel(Client *c, const char *channel);
 void joined_channel(Server *s, const char *channel, const Message *m);
-void send_channel_string(Channel *chan, const char *str, ssize_t len);
-void send_channel_message(Channel *chan, const Message *m);
+void send_channel_string(Channel *chan, Client *except, const char *str,
+        ssize_t len);
+void send_channel_message(Channel *chan, Client *except, const Message *m);
+void send_channel_messagev(Channel *chan, Client *except, const char *nick,
+        const char *user, const char *host, int command, ...);
 
 #endif

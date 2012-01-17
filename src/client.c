@@ -20,11 +20,13 @@ static ClientMessageHandler message_handler[NCOMMANDS];
 
 static int handle_join(Client *, const Message *);
 static int handle_nick(Client *, const Message *);
+static int handle_privmsg(Client *, const Message *);
 
 /* initialise handler functions for client messages */
 void init_client_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
     message_handler[CMD_NICK] = handle_nick;
+    message_handler[CMD_PRIVMSG] = handle_privmsg;
 }
 
 /* return a new empty client */
@@ -167,8 +169,8 @@ static int handle_join(Client *c, const Message *m) {
         return send_client_messagev(c, c->server->host, NULL, NULL,
                 ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",
                 "Not enough parameters", NULL);
-    else
-        return client_join_channel(c, m->param[0]);
+
+    return client_join_channel(c, m->param[0]);
 }
 
 /* change our nick unless this is the first NICK sent by this client, in which
@@ -193,4 +195,29 @@ static int handle_nick(Client *c, const Message *m) {
         return send_client_messagev(c, m->param[0], NULL, NULL, CMD_NICK,
                 c->server->nick, NULL);
     }
+}
+
+/* handle private messages by forwarding them to the server and to other
+ * clients that are in the same channel
+ */
+static int handle_privmsg(Client *c, const Message *m) {
+    if(m->nparams < 2)
+        return send_client_messagev(c, c->server->host, NULL, NULL,
+                ERR_NEEDMOREPARAMS, c->server->nick, "PRIVMSG",
+                "Not enough parameters", NULL);
+
+    /* attempt to find a channel with this name */
+    Channel *chan = lookup_channel(c->server->channel_list, m->param[0]);
+
+    /* if we are in a channel of this name, tell the other clients in that
+     * channel
+     */
+    if(chan)
+        send_channel_messagev(chan, c, c->server->nick, c->server->user,
+                c->server->host, m->command, m->param[0], m->param[1], NULL);
+
+    /* always forward the message to the server */
+    send_server_message(c->server, m);
+
+    return 0;
 }
