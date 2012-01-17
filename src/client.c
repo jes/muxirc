@@ -177,7 +177,10 @@ static int handle_nick(Client *c, const Message *m) {
                 "Not enough parameters", NULL);
 
     if(c->gotnick) {
-        /* TODO: attempt to actually change nick */
+        /* this is not the first nick supplied by this client: the user really
+         * wants to change nick, so let's make it happen
+         */
+        send_server_message(c->server, m);
         return 0;
     } else {
         /* inform the client about what his nick really is */

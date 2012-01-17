@@ -24,10 +24,12 @@ typedef int(*ServerMessageHandler)(Server *, const Message *);
 static ServerMessageHandler message_handler[NCOMMANDS];
 
 static int handle_join(Server *, const Message *);
+static int handle_nick(Server *, const Message *);
 
 /* initialise handler functions for server messages */
 void init_server_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
+    message_handler[CMD_NICK] = handle_nick;
 }
 
 /* connect to irc and initialise the server state */
@@ -43,8 +45,8 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     s->serverfd = -1;
     s->listenfd = -1;
     s->error = 0;
-    s->nick = nick;
-    s->user = username;
+    s->nick = strdup(nick);
+    s->user = NULL;
     s->host = NULL;
     s->bytes = 0;
     s->channel_list = NULL;
@@ -269,6 +271,28 @@ int handle_join(Server *s, const Message *m) {
     } else {
         Channel *chan = lookup_channel(s->channel_list, m->param[0]);
         send_channel_message(chan, m);
+    }
+
+    return 0;
+}
+
+/* handle a nick message by telling all clients about the nick, and changing
+ * our nick if the old one was us
+ */
+int handle_nick(Server *s, const Message *m) {
+    /* fail if there are too few parameters or there is no nick */
+    if(!m->nick || m->nparams == 0)
+        return -1;
+
+    /* TODO: if the nick change is not for us, only tell clients in the same
+     * channel as the person who changed the nick
+     */
+    send_all_clients(s, m);
+
+    /* if the nick change is for us, update our nick */
+    if(strcasecmp(m->nick, s->nick) == 0) {
+        free(s->nick);
+        s->nick = strdup(m->param[0]);
     }
 
     return 0;

@@ -10,9 +10,9 @@ typedef struct Server {
     int serverfd;
     int listenfd;
     int error;
-    const char *nick;
-    const char *user;
-    const char *host;
+    char *nick;
+    char *user;
+    char *host;
     char buf[1024];
     size_t bytes;
     struct Channel *channel_list;
