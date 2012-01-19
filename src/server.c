@@ -53,19 +53,11 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     int n;
     int fd;
 
-    /* initialise all fields of s */
+    /* initialise all of s */
+    memset(s, 0, sizeof(Server));
     s->serverfd = -1;
     s->listenfd = -1;
-    s->error = 0;
-    s->motd_state = MOTD_HAPPY;
     s->nick = strdup(nick);
-    s->user = NULL;
-    s->host = NULL;
-    s->nwelcomes = 0;
-    s->welcome_line = NULL;
-    s->bytes = 0;
-    s->channel_list = NULL;
-    s->client_list = NULL;
 
     /* setup hints for the listening socket */
     memset(&hints, 0, sizeof(hints));
