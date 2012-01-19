@@ -4,7 +4,7 @@
 CFLAGS=-Wall -g
 LDFLAGS=
 OBJS=src/channel.o src/client.o src/message.o src/muxirc.o src/server.o \
-	 src/str.o
+	 src/socket.o src/str.o
 
 .PHONY: all
 all: muxirc

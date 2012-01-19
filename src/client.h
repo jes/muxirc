@@ -7,12 +7,9 @@
 #define CLIENT_H_INC
 
 typedef struct Client {
-    int fd;
-    int error;
     int motd_state;
-    char buf[1024];
     int gotnick;
-    size_t bytes;
+    struct Socket *sock;
     struct Server *server;
     struct Client *prev, *next;
 } Client;
@@ -26,10 +23,6 @@ Client *new_client(void);
 void free_client(Client *c);
 Client *prepend_client(Client *c, Client **list);
 void disconnect_client(Client *c);
-int send_client_string(Client *c, const char *str, ssize_t len);
-int send_client_message(Client *c, const struct Message *m);
-int send_client_messagev(Client *c, const char *nick, const char *user,
-        const char *host, int command, ...);
 void handle_client_data(Client *c);
 int handle_client_message(Client *c, const struct Message *m);
 

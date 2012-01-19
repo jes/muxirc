@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include "socket.h"
 #include "message.h"
 #include "client.h"
 #include "server.h"
@@ -25,9 +26,9 @@ void fatal(Server *s, const char *prefix, const char *msg) {
 
     snprintf(text, 512, "%s: %s", prefix, msg);
 
-    send_server_messagev(s, CMD_QUIT, text, NULL);
-    close(s->serverfd);
-    s->serverfd = -1;
+    send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_QUIT, text, NULL);
+    close(s->sock->fd);
+    s->sock->fd = -1;
 
     m = new_message();
     m->command = CMD_ERROR;
@@ -38,7 +39,7 @@ void fatal(Server *s, const char *prefix, const char *msg) {
 
     Client *c;
     for(c = s->client_list; c; c = c->next)
-        send_client_string(c, strmsg, msglen);
+        send_socket_string(c->sock, strmsg, msglen);
 
     free(strmsg);
     free_message(m);
@@ -56,19 +57,13 @@ int main() {
     irc_connect(&serverstate, "irc.freenode.net", "6667", "muxirc",
             "IRC Multiplexer", "muxirc", "10000");
 
-    /* silence valgrind (strspn uses SSE instructions which compare more bytes
-     * than strictly necessary so it looks like a branch depends on
-     * uninitialised memory when all is well)
-     */
-    memset(serverstate.buf, 0, sizeof(serverstate.buf));
-
     while(1) {
         struct pollfd fd[16];
         Client *client[16];
         int i = 0;
 
         /* fd[0] - connection to server */
-        fd[i].fd = serverstate.serverfd;
+        fd[i].fd = serverstate.sock->fd;
         fd[i].events = POLLIN;
         fd[i].revents = 0;
         i++;
@@ -80,7 +75,7 @@ int main() {
         /* fd[2..] - connections to clients */
         Client *c;
         for(c = serverstate.client_list; c; c = c->next) {
-            fd[i].fd = c->fd;
+            fd[i].fd = c->sock->fd;
             fd[i].events = POLLIN;
             fd[i].revents = 0;
             client[i] = c;
@@ -127,7 +122,7 @@ int main() {
         }
 
         /* check server for errors */
-        if(serverstate.error)
+        if(serverstate.sock->error)
             fatal(&serverstate, "muxirc", "upstream disconnect (error)");
 
         /* check clients for errors */
@@ -135,7 +130,7 @@ int main() {
         for(c = serverstate.client_list; c; c = c_next) {
             c_next = c->next;
 
-            if(c->error)
+            if(c->sock->error)
                 disconnect_client(c);
         }
 
@@ -147,11 +142,14 @@ int main() {
          * important for things like TOPIC and NAMES
          * need to cache the MOTD replies as they are rate-limited (on
          * freenode at least)
+         * this whole system needs to be cleaned up and generalised rather than
+         * just tacked on to the end of main
          */
         if(serverstate.motd_state == MOTD_HAPPY) {
             for(c = serverstate.client_list; c; c = c->next) {
                 if(c->motd_state == MOTD_WANT) {
-                    send_server_messagev(&serverstate, CMD_MOTD, NULL);
+                    send_socket_messagev(serverstate.sock, NULL, NULL, NULL,
+                            CMD_MOTD, NULL);
                     serverstate.motd_state = MOTD_WANT;
                     break;
                 }

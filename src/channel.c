@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
+#include "socket.h"
 #include "message.h"
 #include "client.h"
 #include "server.h"
@@ -99,7 +100,8 @@ int client_join_channel(Client *c, const char *channel) {
         prepend_channel(chan, &(c->server->channel_list));
         chan->state = CHAN_JOINING;
 
-        send_server_messagev(c->server, CMD_JOIN, channel, NULL);
+        send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_JOIN,
+                channel, NULL);
     }
 
     /* add this client to the channel, whatever state it is in */
@@ -112,10 +114,12 @@ int client_join_channel(Client *c, const char *channel) {
     /* TODO: mark this client as requesting topic and names for this
      * channel
      */
-    send_server_messagev(c->server, CMD_TOPIC, channel, NULL);
-    send_server_messagev(c->server, CMD_NAMES, channel, NULL);
+    send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_TOPIC, channel,
+            NULL);
+    send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_NAMES, channel,
+            NULL);
 
-    return send_client_messagev(c, c->server->nick, c->server->user,
+    return send_socket_messagev(c->sock, c->server->nick, c->server->user,
                 c->server->host, CMD_JOIN, channel, NULL);
 }
 
@@ -169,7 +173,7 @@ void joined_channel(Server *s, const char *channel, const Message *m) {
 
     int i;
     for(i = 0; i < chan->nclients; i++)
-        send_client_string(chan->client[i], strmsg, msglen);
+        send_socket_string(chan->client[i]->sock, strmsg, msglen);
 
     free(strmsg);
 }
@@ -180,7 +184,7 @@ void send_channel_string(Channel *chan, Client *except, const char *str,
     int i;
     for(i = 0; i < chan->nclients; i++)
         if(chan->client[i] != except)
-            send_client_string(chan->client[i], str, len);
+            send_socket_string(chan->client[i]->sock, str, len);
 }
 
 /* send a message to all clients in this channel */

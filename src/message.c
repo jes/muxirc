@@ -9,7 +9,9 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdarg.h>
 
+#include "socket.h"
 #include "message.h"
 #include "str.h"
 
@@ -261,65 +263,50 @@ char *strmessage(const Message *m, size_t *length) {
     return line;
 }
 
-/* send the given string to the given socket, returning -1 on error and 0
- * on success; if len >= 0 it should contain the length of str, otherwise
- * strlen(str) will be used
- */
-int send_string(int fd, const char *str, ssize_t len) {
-    ssize_t r;
+/* send the given message to the given socket */
+int send_socket_message(Socket *sock, const Message *m) {
+    size_t msglen;
+    char *strmsg = strmessage(m, &msglen);
 
-    if(len < 0)
-        len = strlen(str);
+    int r = send_socket_string(sock, strmsg, msglen);
 
-    printf("Sending: ##%s##\n", str);
-
-    /* keep trying while EINTR */
-    while((r = write(fd, str, len)) < 0)
-        if(r != EINTR)
-            break;
-
-    return r < 0 ? -1 : 0;
-}
-
-/* send the given message to the given socket, returning -1 on error and 0
- * on success
- */
-int send_message(int fd, const Message *m) {
-    size_t length;
-    char *msg = strmessage(m, &length);
-
-    ssize_t r = send_string(fd, msg, length);
-
-    free(msg);
+    free(strmsg);
     return r;
 }
 
-/* read data from the file descriptor, appending it to the buffer, updating
- * *bufused to indicate how much is now used, and without going over the buflen
- * limit; return 0 on success and -1 on error
+/* send a message to the given socket, in the form:
+ *  :nick!user@host <command> <params...>
  */
-int read_data(int fd, char *buf, size_t *bufused, size_t buflen) {
-    ssize_t r;
+int send_socket_messagev(Socket *sock, const char *nick, const char *user,
+        const char *host, int command, ...) {
+    va_list argp;
+    Message *m = new_message();
 
-    /* keep reading until it is successful or the error is not EINTR */
-    while((r = read(fd, buf + *bufused, buflen - 1 - *bufused)) < 0)
-        if(errno != EINTR)
+    if(nick)
+        m->nick = strdup(nick);
+    if(user)
+        m->user = strdup(user);
+    if(host)
+        m->host = strdup(host);
+    m->command = command;
+
+    va_start(argp, command);
+
+    char *s;
+    while(1) {
+        s = va_arg(argp, char *);
+        if(!s)
             break;
 
-    /* return an error if there is an error */
-    if(r <= 0) {
-        if(r < 0)
-            perror("read");
-        return -1;
+        add_message_param(m, strdup(s));
     }
 
-    /* update *bufused and nul-terminate buf */
-    *bufused += r;
-    buf[*bufused] = '\0';
+    va_end(argp);
 
-    printf("Read: %s", buf);
+    int r = send_socket_message(sock, m);
+    free_message(m);
 
-    return 0;
+    return r;
 }
 
 /* handle messages from the string by parsing them and passing them to the

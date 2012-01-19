@@ -5,10 +5,10 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <stdio.h>
 
+#include "socket.h"
 #include "message.h"
 #include "server.h"
 #include "client.h"
@@ -39,7 +39,7 @@ void init_client_handlers(void) {
 Client *new_client(void) {
     Client *c = malloc(sizeof(Client));
     memset(c, 0, sizeof(Client));
-    c->fd = -1;
+    c->sock = new_socket();
     return c;
 }
 
@@ -50,6 +50,7 @@ void free_client(Client *c) {
     if(c->next)
         c->next->prev = c->prev;
 
+    free(c->sock);
     free(c);
 }
 
@@ -77,7 +78,7 @@ Client *prepend_client(Client *c, Client **list) {
 void disconnect_client(Client *c) {
     /* TODO: remove any channels he is the sole member of */
 
-    close(c->fd);
+    close(c->sock->fd);
 
     /* if this is the first client in the list, point the list at the next
      * client
@@ -88,62 +89,13 @@ void disconnect_client(Client *c) {
     free_client(c);
 }
 
-/* send the given string to the given client; if len >= 0 it should contain
- * the length of str, otherwise strlen(str) is used to obtain the length
- */
-int send_client_string(Client *c, const char *str, ssize_t len) {
-    return c->error = send_string(c->fd, str, len);
-}
-
-/* send the given message to the given client, and update the client error
- * state
- */
-int send_client_message(Client *c, const Message *m) {
-    return c->error = send_message(c->fd, m);
-}
-
-/* send a message to the given client, in the form:
- *  :nick!user@host <command> <params...>
- */
-int send_client_messagev(Client *c, const char *nick, const char *user,
-        const char *host, int command, ...) {
-    va_list argp;
-    Message *m = new_message();
-
-    if(nick)
-        m->nick = strdup(nick);
-    if(user)
-        m->user = strdup(user);
-    if(host)
-        m->host = strdup(host);
-    m->command = command;
-
-    va_start(argp, command);
-
-    char *s;
-    while(1) {
-        s = va_arg(argp, char *);
-        if(!s)
-            break;
-
-        add_message_param(m, strdup(s));
-    }
-
-    va_end(argp);
-
-    int r = send_client_message(c, m);
-    free_message(m);
-
-    return r;
-}
-
 /* read from the client and deal with the messages */
 void handle_client_data(Client *c) {
     printf("Handling client data\n");
 
     /* read data into the buffer and handle messages if there is no error */
-    if((c->error = read_data(c->fd, c->buf, &(c->bytes), 1024)) == 0)
-        handle_messages(c->buf, &(c->bytes),
+    if(read_data(c->sock) == 0)
+        handle_messages(c->sock->buf, &(c->sock->bytes),
                 (GenericMessageHandler)handle_client_message, c);
 }
 
@@ -154,7 +106,7 @@ int handle_client_message(Client *c, const Message *m) {
         return message_handler[m->command](c, m);
     } else {
         /* pass on un-handled messages */
-        send_server_message(c->server, m);
+        send_socket_message(c->server->sock, m);
         return 0;
     }
 }
@@ -167,7 +119,7 @@ static int handle_ignore(Client *c, const Message *m) {
 /* join the channel */
 static int handle_join(Client *c, const Message *m) {
     if(m->nparams < 1)
-        return send_client_messagev(c, c->server->host, NULL, NULL,
+        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
                 ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",
                 "Not enough parameters", NULL);
 
@@ -179,7 +131,7 @@ static int handle_join(Client *c, const Message *m) {
  */
 static int handle_nick(Client *c, const Message *m) {
     if(m->nparams < 1)
-        return send_client_messagev(c, c->server->host, NULL, NULL,
+        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
                 ERR_NEEDMOREPARAMS, c->server->nick, "NICK",
                 "Not enough parameters", NULL);
 
@@ -187,13 +139,13 @@ static int handle_nick(Client *c, const Message *m) {
         /* this is not the first nick supplied by this client: the user really
          * wants to change nick, so let's make it happen
          */
-        send_server_message(c->server, m);
+        send_socket_message(c->server->sock, m);
         return 0;
     } else {
         /* inform the client about what his nick really is */
         c->gotnick = 1;
 
-        return send_client_messagev(c, m->param[0], NULL, NULL, CMD_NICK,
+        return send_socket_messagev(c->sock, m->param[0], NULL, NULL, CMD_NICK,
                 c->server->nick, NULL);
     }
 }
@@ -203,11 +155,12 @@ static int handle_user(Client *c, const Message *m) {
     int i;
 
     for(i = 0; i < c->server->nwelcomes; i++)
-        if(send_client_string(c, c->server->welcome_line[i], -1))
+        if(send_socket_string(c->sock, c->server->welcome_line[i], -1))
             break;
 
     /* find out the user modes */
-    send_server_messagev(c->server, CMD_MODE, c->server->nick, NULL);
+    send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_MODE,
+            c->server->nick, NULL);
 
     /* request an MOTD for this client */
     c->motd_state = MOTD_WANT;
@@ -220,7 +173,7 @@ static int handle_user(Client *c, const Message *m) {
  */
 static int handle_privmsg(Client *c, const Message *m) {
     if(m->nparams < 2)
-        return send_client_messagev(c, c->server->host, NULL, NULL,
+        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
                 ERR_NEEDMOREPARAMS, c->server->nick, "PRIVMSG",
                 "Not enough parameters", NULL);
 
@@ -235,7 +188,7 @@ static int handle_privmsg(Client *c, const Message *m) {
                 c->server->host, m->command, m->param[0], m->param[1], NULL);
 
     /* always forward the message to the server */
-    send_server_message(c->server, m);
+    send_socket_message(c->server->sock, m);
 
     return 0;
 }
@@ -244,6 +197,6 @@ static int handle_privmsg(Client *c, const Message *m) {
  * is disconnected at the next opportunity)
  */
 static int handle_quit(Client *c, const Message *m) {
-    c->error = 1;
+    c->sock->error = 1;
     return 0;
 }

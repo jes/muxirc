@@ -44,9 +44,9 @@ int parse_command(const char **line, Message *m);
 int parse_params(const char **line, Message *m);
 void skip_space(const char **p);
 char *strmessage(const Message *m, size_t *length);
-int send_string(int fd, const char *str, ssize_t len);
-int send_message(int fd, const Message *m);
-int read_data(int fd, char *buf, size_t *bufused, size_t buflen);
+int send_socket_message(Socket *sock, const Message *m);
+int send_socket_messagev(Socket *sock, const char *nick, const char *user,
+        const char *host, int command, ...);
 void handle_messages(char *buf, size_t *bufused, GenericMessageHandler handler,
         void *data);
 

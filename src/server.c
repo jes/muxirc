@@ -11,9 +11,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <stdarg.h>
 #include <errno.h>
 
+#include "socket.h"
 #include "message.h"
 #include "server.h"
 #include "client.h"
@@ -55,9 +55,9 @@ void irc_connect(Server *s, const char *server, const char *serverport,
 
     /* initialise all of s */
     memset(s, 0, sizeof(Server));
-    s->serverfd = -1;
     s->listenfd = -1;
     s->nick = strdup(nick);
+    s->sock = new_socket();
 
     /* setup hints for the listening socket */
     memset(&hints, 0, sizeof(hints));
@@ -67,7 +67,7 @@ void irc_connect(Server *s, const char *server, const char *serverport,
 
     if((n = getaddrinfo(NULL, listenport, &hints, &servinfo))) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(n));
-        close(s->serverfd);
+        close(s->sock->fd);
         exit(1);
     }
 
@@ -140,13 +140,13 @@ void irc_connect(Server *s, const char *server, const char *serverport,
         exit(1);
     }
 
-    s->serverfd = fd;
+    s->sock->fd = fd;
 
     /* now register with the server */
     /* TODO: Send PASS if necessary */
-    send_server_messagev(s, CMD_NICK, nick, NULL);
-    send_server_messagev(s, CMD_USER, username, "localhost", server, realname,
-            NULL);
+    send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_NICK, nick, NULL);
+    send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_USER, username,
+            "localhost", server, realname, NULL);
 
     /* TODO: Something that will reliably cause us to be told our user and
      * host so that it will get set (send us a pm?). We need to give the
@@ -165,53 +165,11 @@ int send_all_clients(Server *s, const Message *m) {
     char *strmsg = strmessage(m, &msglen);
 
     for(c = s->client_list; c; c = c->next)
-        send_client_string(c, strmsg, msglen);
+        send_socket_string(c->sock, strmsg, msglen);
 
     free(strmsg);
 
     return 0;
-}
-
-/* send the given string to the given server; if len >= 0 it should contain
- * the length of str, otherwise strlen(str) is used to obtain the length
- */
-int send_server_string(Server *s, const char *str, ssize_t len) {
-    return s->error = send_string(s->serverfd, str, len);
-}
-
-/* send the given message to the given server, and update the server error
- * state
- */
-int send_server_message(Server *s, const Message *m) {
-    return s->error = send_message(s->serverfd, m);
-}
-
-/* send a message to the given server, in the form:
- *  <command> <params...>
- */
-int send_server_messagev(Server *s, int command, ...) {
-    va_list argp;
-    Message *m = new_message();
-
-    m->command = command;
-
-    va_start(argp, command);
-
-    char *str;
-    while(1) {
-        str = va_arg(argp, char *);
-        if(!str)
-            break;
-
-        add_message_param(m, strdup(str));
-    }
-
-    va_end(argp);
-
-    int r = send_server_message(s, m);
-    free_message(m);
-
-    return r;
 }
 
 /* handle a new connection on the listening socket */
@@ -230,7 +188,7 @@ void handle_new_connection(Server *s) {
 
     /* make a new client and add him to the list */
     Client *c = new_client();
-    c->fd = fd;
+    c->sock->fd = fd;
     c->server = s;
     prepend_client(c, &(s->client_list));
 }
@@ -242,8 +200,8 @@ void handle_server_data(Server *s) {
     printf("Handling server data\n");
 
     /* read data into the buffer and handle messages if there is no error */
-    if((s->error = read_data(s->serverfd, s->buf, &(s->bytes), 1024)) == 0)
-        handle_messages(s->buf, &(s->bytes),
+    if(read_data(s->sock) == 0)
+        handle_messages(s->sock->buf, &(s->sock->bytes),
                 (GenericMessageHandler)handle_server_message, s);
 }
 
@@ -350,7 +308,7 @@ static int handle_motd(Server *s, const Message *m) {
                 c->motd_state = MOTD_HAPPY;
 
             /* forward the message */
-            send_client_message(c, m);
+            send_socket_message(c->sock, m);
         }
     }
 
