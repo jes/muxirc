@@ -26,6 +26,7 @@ static ServerMessageHandler message_handler[NCOMMANDS];
 static int handle_ignore(Server *, const Message *);
 static int handle_join(Server *, const Message *);
 static int handle_nick(Server *, const Message *);
+static int handle_topic(Server *, const Message *);
 static int handle_welcome(Server *, const Message *);
 static int handle_motd(Server *, const Message *);
 
@@ -33,6 +34,8 @@ static int handle_motd(Server *, const Message *);
 void init_server_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
     message_handler[CMD_NICK] = handle_nick;
+    message_handler[CMD_TOPIC] = handle_topic;
+    message_handler[RPL_TOPIC] = handle_topic;
     message_handler[CMD_CAP] = handle_ignore;
     message_handler[RPL_WELCOME] = handle_welcome;
     message_handler[RPL_YOURHOST] = handle_welcome;
@@ -229,6 +232,7 @@ int handle_server_message(Server *s, const Message *m) {
             && message_handler[m->command]) {
         return message_handler[m->command](s, m);
     } else {
+        printf("not handling....!\n");
         /* pass un-handled messages to all clients */
         send_all_clients(s, m);
         return 0;
@@ -288,6 +292,41 @@ static int handle_nick(Server *s, const Message *m) {
             }
         }
     }
+
+    return 0;
+}
+
+/* handle a topic change */
+static int handle_topic(Server *s, const Message *m) {
+    printf("m->nparams = %d\n", m->nparams);
+
+    /* not enough parameters: fail */
+    if((m->command != CMD_TOPIC && m->nparams < 3) || m->nparams < 2)
+        return -1;
+
+    printf("accepted m->nparams\n");
+
+    /* if this is a numeric topic message, there is an extra parameter
+     * containing our nick
+     */
+    char **param = m->param + (m->command != CMD_TOPIC);
+
+    Channel *chan = lookup_channel(s->channel_list, param[0]);
+
+    printf("chan %s = %p\n", param[0], chan);
+
+    /* not in the channel: fail */
+    if(!chan)
+        return -1;
+
+    /* update the topic */
+    free(chan->topic);
+    chan->topic = strdup(param[1]);
+
+    printf("sending channel a message\n");
+
+    /* tell all clients in the channel */
+    send_channel_message(chan, NULL, m);
 
     return 0;
 }

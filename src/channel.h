@@ -8,6 +8,7 @@
 
 typedef struct Channel {
     char *name;
+    char *topic;
     int state;
     int nclients;
     struct Client **client;

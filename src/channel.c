@@ -24,6 +24,7 @@ Channel *new_channel(void) {
 /* remove the given channel from it's list (if any) and free it */
 void free_channel(Channel *chan) {
     free(chan->name);
+    free(chan->topic);
     free(chan->client);
 
     if(chan->prev)
@@ -151,16 +152,23 @@ int client_join_channel(Client *c, const char *channel) {
     if(chan->state != CHAN_JOINED)
         return 0;
 
-    /* TODO: mark this client as requesting topic and names for this
-     * channel
-     */
-    send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_TOPIC, channel,
-            NULL);
-    send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_NAMES, channel,
-            NULL);
-
-    return send_socket_messagev(c->sock, c->server->nick, c->server->user,
+    int r = send_socket_messagev(c->sock, c->server->nick, c->server->user,
             c->server->host, CMD_JOIN, channel, NULL);
+
+    if(chan) {
+        /* TODO: mark this client as requesting names for this channel, or
+         * store the names and send them as necessary
+         */
+        send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_NAMES,
+                channel, NULL);
+
+        /* if we know the topic yet, tell this client */
+        if(chan->topic)
+            send_socket_messagev(c->sock, c->server->host, NULL, NULL,
+                    RPL_TOPIC, c->server->nick, channel, chan->topic, NULL);
+    }
+
+    return r;
 }
 
 /* attempt to remove c from the channel with the given name; return 0 on
