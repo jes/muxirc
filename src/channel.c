@@ -84,6 +84,46 @@ Channel *lookup_channel(Channel *list, const char *channel) {
     return chan;
 }
 
+/* remove this client from all of the channels he is in */
+void remove_client_from_channels(Client *c) {
+    Channel *chan, *chan_next;
+
+    for(chan = c->server->channel_list; chan; chan = chan_next) {
+        chan_next = chan->next;
+        remove_client_from_channel(c, chan);
+    }
+}
+
+/* remove this client from this channel, deleting the channel if necessary */
+void remove_client_from_channel(Client *c, Channel *chan) {
+    int i;
+
+    /* find the index of this client */
+    for(i = 0; i < chan->nclients && chan->client[i] != c; i++);
+
+    if(i == chan->nclients) {
+        fprintf(stderr, "warning: tried to remove a client from a channel he "
+                "does not appear to be in!\n");
+        return;
+    }
+
+    if(chan->nclients > 1) {
+        /* just remove this client */
+        chan->nclients--;
+        for(; i < chan->nclients; i++)
+            chan->client[i] = chan->client[i+1];
+        chan->client = realloc(chan->client,
+                sizeof(Client *) * chan->nclients);
+    } else {
+        /* tell the server */
+        send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_PART,
+                chan->name, NULL);
+
+        /* remove this channel entirely */
+        free_channel(chan);
+    }
+}
+
 /* attempt to add c to the channel with the given name; return 0 on
  * successfully informing the client that he is joined (or not having to), and
  * non-zero on failure
@@ -120,7 +160,34 @@ int client_join_channel(Client *c, const char *channel) {
             NULL);
 
     return send_socket_messagev(c->sock, c->server->nick, c->server->user,
-                c->server->host, CMD_JOIN, channel, NULL);
+            c->server->host, CMD_JOIN, channel, NULL);
+}
+
+/* attempt to remove c from the channel with the given name; return 0 on
+ * successfully informing the client that he has parted and 0 on failure;
+ * actually part the channel if this is the only client;
+ */
+int client_part_channel(Client *c, const char *channel) {
+    Channel *chan = lookup_channel(c->server->channel_list, channel);
+
+    int i = -1;
+    if(chan)
+        for(i = 0; i < chan->nclients && chan->client[i] != c; i++);
+
+    /* if the channel doesn't exist yet or the user is not in it, tell him
+     * this.
+     */
+    if(!chan || i == chan->nclients)
+        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
+                ERR_NOTONCHANNEL, c->server->nick, channel,
+                "You're not on that channel", NULL);
+
+    /* remove him from the channel */
+    remove_client_from_channel(c, chan);
+
+    /* tell him he has parted */
+    return send_socket_messagev(c->sock, c->server->nick, c->server->user,
+            c->server->host, CMD_PART, channel, NULL);
 }
 
 /* mark the channel with the given name as successfully joined and tell all

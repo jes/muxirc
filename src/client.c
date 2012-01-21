@@ -20,6 +20,7 @@ static ClientMessageHandler message_handler[NCOMMANDS];
 
 static int handle_ignore(Client *, const Message *);
 static int handle_join(Client *, const Message *);
+static int handle_part(Client *, const Message *);
 static int handle_nick(Client *, const Message *);
 static int handle_user(Client *, const Message *);
 static int handle_privmsg(Client *, const Message *);
@@ -28,6 +29,7 @@ static int handle_quit(Client *, const Message *);
 /* initialise handler functions for client messages */
 void init_client_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
+    message_handler[CMD_PART] = handle_part;
     message_handler[CMD_NICK] = handle_nick;
     message_handler[CMD_USER] = handle_user;
     message_handler[CMD_PRIVMSG] = handle_privmsg;
@@ -45,6 +47,8 @@ Client *new_client(void) {
 
 /* remove c from its list and free it */
 void free_client(Client *c) {
+    remove_client_from_channels(c);
+
     if(c->prev)
         c->prev->next = c->next;
     if(c->next)
@@ -123,7 +127,27 @@ static int handle_join(Client *c, const Message *m) {
                 ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",
                 "Not enough parameters", NULL);
 
+    /* TODO: the first parameter (channel to join) can be a comma-separated
+     * list
+     */
+
     return client_join_channel(c, m->param[0]);
+}
+
+/* part the channel - only actually part it if this was the last client in
+ * the channel
+ */
+static int handle_part(Client *c, const Message *m) {
+    if(m->nparams < 1)
+        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
+                ERR_NEEDMOREPARAMS, c->server->nick, "PART",
+                "Not enough parameters", NULL);
+
+    /* TODO: the first parameter (channel to join) can be a comma-separated
+     * list
+     */
+
+    return client_part_channel(c, m->param[0]);
 }
 
 /* change our nick unless this is the first NICK sent by this client, in which
