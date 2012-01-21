@@ -80,8 +80,6 @@ Client *prepend_client(Client *c, Client **list) {
 
 /* disconnect, remove and free this client */
 void disconnect_client(Client *c) {
-    /* TODO: remove any channels he is the sole member of */
-
     close(c->sock->fd);
 
     /* if this is the first client in the list, point the list at the next
