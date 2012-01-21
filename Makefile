@@ -12,9 +12,11 @@ all: muxirc
 muxirc: $(OBJS)
 	$(CC) -o muxirc $(OBJS) $(LDFLAGS)
 
+-include $(OBJS:.o=.d)
+
 %.o: %.c
-	$(CC) -o $@ -c $< $(CFLAGS)
+	$(CC) -MMD -o $@ -c $< $(CFLAGS)
 
 .PHONY: clean
 clean:
-	$(RM) $(OBJS) muxirc
+	$(RM) src/*.o src/*.d muxirc
