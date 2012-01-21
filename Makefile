@@ -17,4 +17,4 @@ muxirc: $(OBJS)
 
 .PHONY: clean
 clean:
-	-$(RM) $(OBJS) muxirc
+	$(RM) $(OBJS) muxirc
