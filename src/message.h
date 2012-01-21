@@ -35,6 +35,7 @@ enum {
 extern char *command_string[];
 
 Message *new_message(void);
+Message *copy_message(const Message *m);
 void free_message(Message *m);
 void free_message_params(Message *m);
 Message *add_message_param(Message *m, char *s);

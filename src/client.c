@@ -155,7 +155,7 @@ static int handle_user(Client *c, const Message *m) {
     int i;
 
     for(i = 0; i < c->server->nwelcomes; i++)
-        if(send_socket_string(c->sock, c->server->welcome_line[i], -1))
+        if(send_socket_message(c->sock, c->server->welcomemsg[i]))
             break;
 
     /* find out the user modes */

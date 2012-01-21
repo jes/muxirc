@@ -275,6 +275,18 @@ static int handle_nick(Server *s, const Message *m) {
     if(strcasecmp(m->nick, s->nick) == 0) {
         free(s->nick);
         s->nick = strdup(m->param[0]);
+
+        /* also change all of the welcome message nicks */
+        /* TODO: it is pretty inefficient to keep around hundreds of copies of
+         * the nick...
+         */
+        int i;
+        for(i = 0; i < s->nwelcomes; i++) {
+            if(s->welcomemsg[i]->nparams > 0) {
+                free(s->welcomemsg[i]->param[0]);
+                s->welcomemsg[i]->param[0] = strdup(s->nick);
+            }
+        }
     }
 
     return 0;
@@ -285,8 +297,8 @@ static int handle_nick(Server *s, const Message *m) {
  */
 static int handle_welcome(Server *s, const Message *m) {
     s->nwelcomes++;
-    s->welcome_line = realloc(s->welcome_line, s->nwelcomes * sizeof(char *));
-    s->welcome_line[s->nwelcomes - 1] = strmessage(m, NULL);
+    s->welcomemsg = realloc(s->welcomemsg, s->nwelcomes * sizeof(Message *));
+    s->welcomemsg[s->nwelcomes - 1] = copy_message(m);
 
     send_all_clients(s, m);
 

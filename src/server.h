@@ -13,7 +13,7 @@ typedef struct Server {
     char *user;
     char *host;
     int nwelcomes;
-    char **welcome_line;
+    Message **welcomemsg;
     struct Socket *sock;
     struct Channel *channel_list;
     struct Client *client_list;

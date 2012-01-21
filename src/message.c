@@ -33,6 +33,26 @@ Message *new_message(void) {
     return m;
 }
 
+/* allocate and initialise a copy of a Message */
+Message *copy_message(const Message *m) {
+    Message *copy = new_message();
+
+    if(m->nick)
+        copy->nick = strdup(m->nick);
+    if(m->user)
+        copy->user = strdup(m->user);
+    if(m->host)
+        copy->host = strdup(m->host);
+
+    copy->command = m->command;
+
+    int i;
+    for(i = 0; i < m->nparams; i++)
+        add_message_param(copy, strdup(m->param[i]));
+
+    return copy;
+}
+
 /* free the given message and all pointer fields */
 void free_message(Message *m) {
     free(m->nick);
