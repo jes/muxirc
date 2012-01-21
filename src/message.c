@@ -270,7 +270,8 @@ char *strmessage(const Message *m, size_t *length) {
     int i;
     for(i = (m->command == CMD_INVALID); i < m->nparams; i++) {
         strappend(line, &endptr, 511, " ");
-        if(i == m->nparams-1 && strchr(m->param[i], ' '))
+        if(i == m->nparams-1 && (m->param[i][0] == ':'
+                    || strchr(m->param[i], ' ')))
             strappend(line, &endptr, 511, ":");
         strappend(line, &endptr, 511, m->param[i]);
     }
