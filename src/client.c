@@ -163,6 +163,9 @@ static int handle_nick(Client *c, const Message *m) {
         /* this is not the first nick supplied by this client: the user really
          * wants to change nick, so let's make it happen
          */
+        /* TODO: accept the first nick we receive upon starting up instead of
+         * renaming everyone to muxirc
+         */
         send_socket_message(c->server->sock, m);
         return 0;
     } else {
