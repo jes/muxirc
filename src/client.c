@@ -158,11 +158,8 @@ static int handle_nick(Client *c, const Message *m) {
                 "Not enough parameters", NULL);
 
     if(c->gotnick) {
-        /* this is not the first nick supplied by this client: the user really
-         * wants to change nick, so let's make it happen
-         */
-        /* TODO: accept the first nick we receive upon starting up instead of
-         * renaming everyone to muxirc
+        /* this is not the first nick supplied by this client, or it is the
+         * first nick supplied by any client: we really have to change nick
          */
         send_socket_message(c->server->sock, m);
         return 0;
@@ -170,8 +167,16 @@ static int handle_nick(Client *c, const Message *m) {
         /* inform the client about what his nick really is */
         c->gotnick = 1;
 
-        return send_socket_messagev(c->sock, m->param[0], NULL, NULL, CMD_NICK,
-                c->server->nick, NULL);
+        int r = send_socket_messagev(c->sock, m->param[0], NULL, NULL,
+                CMD_NICK, c->server->nick, NULL);
+
+        /* if the server doesn't have a nick yet (i.e. doesn't have any other
+         * clients who will have set a nick), request the nick
+         */
+        if(!c->server->client_list->next)
+            send_socket_message(c->server->sock, m);
+
+        return r;
     }
 }
 

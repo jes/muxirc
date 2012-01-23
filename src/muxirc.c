@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <time.h>
 
 #include "socket.h"
 #include "message.h"
@@ -50,12 +51,14 @@ void fatal(Server *s, const char *prefix, const char *msg) {
 int main() {
     Server serverstate;
 
+    srand(time(NULL) ^ getpid());
+
     init_client_handlers();
     init_server_handlers();
 
     /* TODO: take these from arguments */
     irc_connect(&serverstate, "irc.freenode.net", "6667", "muxirc",
-            "IRC Multiplexer", "muxirc", "10000");
+            "IRC Multiplexer", "10000");
 
     while(1) {
         struct pollfd fd[16];

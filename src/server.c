@@ -29,6 +29,7 @@ static int handle_nick(Server *, const Message *);
 static int handle_topic(Server *, const Message *);
 static int handle_welcome(Server *, const Message *);
 static int handle_motd(Server *, const Message *);
+static int handle_nickinuse(Server *, const Message *);
 
 /* initialise handler functions for server messages */
 void init_server_handlers(void) {
@@ -45,12 +46,24 @@ void init_server_handlers(void) {
     message_handler[RPL_MOTDSTART] = handle_motd;
     message_handler[RPL_MOTD] = handle_motd;
     message_handler[RPL_ENDOFMOTD] = handle_motd;
+    message_handler[ERR_NICKNAMEINUSE] = handle_nickinuse;
+}
+
+/* return a pointer to a static array containing a random nick */
+static char *random_nick(void) {
+    static char nick[9];
+    int i;
+
+    for(i = 0; i < 8; i++)
+        nick[i] = 'a' + rand()%26;
+    nick[i] = '\0';
+
+    return nick;
 }
 
 /* connect to irc and initialise the server state */
 void irc_connect(Server *s, const char *server, const char *serverport,
-        const char *username, const char *realname, const char *nick,
-        const char *listenport) {
+        const char *username, const char *realname, const char *listenport) {
     int yes = 1;
     struct addrinfo hints, *servinfo, *p;
     int n;
@@ -59,7 +72,7 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     /* initialise all of s */
     memset(s, 0, sizeof(Server));
     s->listenfd = -1;
-    s->nick = strdup(nick);
+    s->nick = strdup(random_nick());
     s->sock = new_socket();
 
     /* setup hints for the listening socket */
@@ -147,7 +160,7 @@ void irc_connect(Server *s, const char *server, const char *serverport,
 
     /* now register with the server */
     /* TODO: Send PASS if necessary */
-    send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_NICK, nick, NULL);
+    send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_NICK, s->nick, NULL);
     send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_USER, username,
             "localhost", server, realname, NULL);
 
@@ -370,4 +383,15 @@ static int handle_motd(Server *s, const Message *m) {
         s->motd_state = MOTD_HAPPY;
 
     return 0;
+}
+
+/* change to a random nick */
+static int handle_nickinuse(Server *s, const Message *m) {
+    /* if there are clients, let them deal with it */
+    if(s->client_list)
+        return send_all_clients(s, m);
+
+    /* otherwise, choose a random nick */
+    return send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_NICK,
+            random_nick(), NULL);
 }
