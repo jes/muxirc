@@ -9,6 +9,8 @@
 typedef struct Client {
     int motd_state;
     int gotnick;
+    int authd;
+    char *pass;
     struct Socket *sock;
     struct Server *server;
     struct Client *prev, *next;

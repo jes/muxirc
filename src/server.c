@@ -63,7 +63,8 @@ static char *random_nick(void) {
 
 /* connect to irc and initialise the server state */
 void irc_connect(Server *s, const char *server, const char *serverport,
-        const char *username, const char *realname, const char *listenport) {
+        const char *serverpass, const char *username, const char *realname,
+        const char *listenport, const char *pass) {
     int yes = 1;
     struct addrinfo hints, *servinfo, *p;
     int n;
@@ -73,6 +74,9 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     memset(s, 0, sizeof(Server));
     s->listenfd = -1;
     s->nick = strdup(random_nick());
+    s->host = strdup("mux.irc");
+    if(pass)
+        s->pass = strdup(pass);
     s->sock = new_socket();
 
     /* setup hints for the listening socket */
@@ -159,7 +163,9 @@ void irc_connect(Server *s, const char *server, const char *serverport,
     s->sock->fd = fd;
 
     /* now register with the server */
-    /* TODO: Send PASS if necessary */
+    if(serverpass)
+        send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_PASS, serverpass,
+                NULL);
     send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_NICK, s->nick, NULL);
     send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_USER, username,
             "localhost", server, realname, NULL);
@@ -200,12 +206,15 @@ void handle_new_connection(Server *s) {
         return;
     }
 
-    printf("Got connection\n");
-
     /* make a new client and add him to the list */
     Client *c = new_client();
     c->sock->fd = fd;
     c->server = s;
+
+    /* automatically authenticate if there is no password */
+    if(!s->pass)
+        c->authd = 1;
+
     prepend_client(c, &(s->client_list));
 }
 
@@ -213,12 +222,10 @@ void handle_new_connection(Server *s) {
  * are received
  */
 void handle_server_data(Server *s) {
-    printf("Handling server data\n");
-
     /* read data into the buffer and handle messages if there is no error */
     if(read_data(s->sock) == 0)
-        handle_messages(s->sock->buf, &(s->sock->bytes),
-                (GenericMessageHandler)handle_server_message, s);
+        handle_messages(s->sock, (GenericMessageHandler)handle_server_message,
+                s);
 }
 
 /* handle a message from the server (ignore any invalid ones) */
@@ -226,12 +233,15 @@ int handle_server_message(Server *s, const Message *m) {
     /* set the user and host of the server state if it doesn't already
      * have one and the message does
      */
-    if((!s->user || !s->host) && m->nick && s->nick
+    if((!s->user || !s->gothost) && m->nick && s->nick
             && strcasecmp(m->nick, s->nick) == 0) {
         if(m->user)
             s->user = strdup(m->user);
-        if(m->host)
+        if(m->host) {
+            free(s->host);
             s->host = strdup(m->host);
+            s->gothost = 1;
+        }
     }
 
     if(m->command >= FIRST_CMD && m->command < NCOMMANDS)

@@ -57,8 +57,8 @@ int main() {
     init_server_handlers();
 
     /* TODO: take these from arguments */
-    irc_connect(&serverstate, "irc.freenode.net", "6667", "muxirc",
-            "IRC Multiplexer", "10000");
+    irc_connect(&serverstate, "irc.freenode.net", "6667", NULL, "muxirc",
+            "IRC Multiplexer", "10000", "password");
 
     while(1) {
         struct pollfd fd[16];

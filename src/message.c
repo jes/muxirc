@@ -334,12 +334,11 @@ int send_socket_messagev(Socket *sock, const char *nick, const char *user,
  * handler function, and removing all data that was handled (moving anything
  * left over to the start of buf)
  */
-void handle_messages(char *buf, size_t *bufused, GenericMessageHandler handle,
-        void *data) {
-    char *p, *str = buf;
+void handle_messages(Socket *sock, GenericMessageHandler handle, void *data) {
+    char *p, *str = sock->buf;
 
     /* while there are endlines, handle data */
-    while((p = strpbrk(str, "\r\n"))) {
+    while((p = strpbrk(str, "\r\n")) && !sock->error) {
         char c = *p;
         *p = '\0';
 
@@ -357,6 +356,6 @@ void handle_messages(char *buf, size_t *bufused, GenericMessageHandler handle,
     }
 
     /* move any left-over data to the start of the buffer */
-    *bufused -= str - buf;
-    memmove(buf, str, *bufused + 1);
+    sock->bytes -= str - sock->buf;
+    memmove(sock->buf, str, sock->bytes + 1);
 }

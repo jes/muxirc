@@ -11,7 +11,9 @@ typedef struct Server {
     int motd_state;
     char *nick;
     char *user;
+    int gothost;
     char *host;
+    char *pass;
     int nwelcomes;
     Message **welcomemsg;
     struct Socket *sock;
@@ -21,7 +23,8 @@ typedef struct Server {
 
 void init_server_handlers(void);
 void irc_connect(Server *s, const char *server, const char *serverport,
-        const char *username, const char *realname, const char *listenport);
+        const char *serverpass, const char *username, const char *realname,
+        const char *listenport, const char *pass);
 void handle_new_connection(Server *s);
 void handle_server_data(Server *s);
 int handle_server_message(Server *s, const struct Message *m);

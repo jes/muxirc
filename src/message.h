@@ -21,6 +21,7 @@ enum {
     RPL_TOPIC=332, RPL_TOPICWHOTIME, RPL_MOTD=372, RPL_MOTDSTART=375,
     RPL_ENDOFMOTD,
     ERR_NICKNAMEINUSE=433, ERR_NOTONCHANNEL=442, ERR_NEEDMOREPARAMS=461,
+    ERR_PASSWDMISMATCH=464,
     CMD_INVALID=1000,
     FIRST_CMD=1001,
     CMD_PASS=1001, CMD_NICK, CMD_USER, CMD_SERVER, CMD_OPER, CMD_QUIT,
@@ -49,7 +50,6 @@ char *strmessage(const Message *m, size_t *length);
 int send_socket_message(Socket *sock, const Message *m);
 int send_socket_messagev(Socket *sock, const char *nick, const char *user,
         const char *host, int command, ...);
-void handle_messages(char *buf, size_t *bufused, GenericMessageHandler handler,
-        void *data);
+void handle_messages(Socket *sock, GenericMessageHandler handle, void *data);
 
 #endif

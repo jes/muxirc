@@ -21,6 +21,7 @@ static ClientMessageHandler message_handler[NCOMMANDS];
 static int handle_ignore(Client *, const Message *);
 static int handle_join(Client *, const Message *);
 static int handle_part(Client *, const Message *);
+static int handle_pass(Client *, const Message *);
 static int handle_nick(Client *, const Message *);
 static int handle_user(Client *, const Message *);
 static int handle_privmsg(Client *, const Message *);
@@ -30,6 +31,7 @@ static int handle_quit(Client *, const Message *);
 void init_client_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
     message_handler[CMD_PART] = handle_part;
+    message_handler[CMD_PASS] = handle_pass;
     message_handler[CMD_NICK] = handle_nick;
     message_handler[CMD_USER] = handle_user;
     message_handler[CMD_PRIVMSG] = handle_privmsg;
@@ -91,18 +93,38 @@ void disconnect_client(Client *c) {
     free_client(c);
 }
 
+/* send an ERR_NEEDMOREPARAMS message to the given client for the given
+ * command
+ */
+int need_more_params(Client *c, const char *command) {
+    return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
+            ERR_NEEDMOREPARAMS, c->server->nick, command,
+            "Not enough parameters", NULL);
+}
+
 /* read from the client and deal with the messages */
 void handle_client_data(Client *c) {
-    printf("Handling client data\n");
-
     /* read data into the buffer and handle messages if there is no error */
     if(read_data(c->sock) == 0)
-        handle_messages(c->sock->buf, &(c->sock->bytes),
-                (GenericMessageHandler)handle_client_message, c);
+        handle_messages(c->sock, (GenericMessageHandler)handle_client_message,
+                c);
 }
 
 /* handle a message from the given client (ignore any invalid ones) */
 int handle_client_message(Client *c, const Message *m) {
+    if(!c->authd && m->command != CMD_PASS) {
+        if(!c->pass || strcmp(c->pass, c->server->pass) != 0) {
+            /* incorrect password, fail and disconnect the client soon */
+            send_socket_messagev(c->sock, c->server->host, NULL, NULL,
+                    ERR_PASSWDMISMATCH, "*", "Incorrect password", NULL);
+            c->sock->error = 1;
+            return -1;
+        } else {
+            /* correct password */
+            c->authd = 1;
+        }
+    }
+
     if(m->command >= 0 && m->command < NCOMMANDS
             && message_handler[m->command]) {
         return message_handler[m->command](c, m);
@@ -121,9 +143,7 @@ static int handle_ignore(Client *c, const Message *m) {
 /* join the channel */
 static int handle_join(Client *c, const Message *m) {
     if(m->nparams < 1)
-        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
-                ERR_NEEDMOREPARAMS, c->server->nick, "JOIN",
-                "Not enough parameters", NULL);
+        return need_more_params(c, "JOIN");
 
     /* TODO: the first parameter (channel to join) can be a comma-separated
      * list
@@ -137,9 +157,7 @@ static int handle_join(Client *c, const Message *m) {
  */
 static int handle_part(Client *c, const Message *m) {
     if(m->nparams < 1)
-        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
-                ERR_NEEDMOREPARAMS, c->server->nick, "PART",
-                "Not enough parameters", NULL);
+        return need_more_params(c, "PART");
 
     /* TODO: the first parameter (channel to join) can be a comma-separated
      * list
@@ -148,14 +166,28 @@ static int handle_part(Client *c, const Message *m) {
     return client_part_channel(c, m->param[0]);
 }
 
+/* handle a password from the user by storing it (it is checked by the first
+ * command that isn't PASS; from RFC 1459: "It is possible to send multiple
+ * PASS commands before registering but only the last one sent is used for
+ * verification and it may not be changed once registered")
+ */
+static int handle_pass(Client *c, const Message *m) {
+    if(m->nparams < 1)
+        return need_more_params(c, "PASS");
+
+    /* store the new password */
+    free(c->pass);
+    c->pass = strdup(m->param[0]);
+
+    return 0;
+}
+
 /* change our nick unless this is the first NICK sent by this client, in which
  * case change his nick
  */
 static int handle_nick(Client *c, const Message *m) {
     if(m->nparams < 1)
-        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
-                ERR_NEEDMOREPARAMS, c->server->nick, "NICK",
-                "Not enough parameters", NULL);
+        return need_more_params(c, "NICK");
 
     if(c->gotnick) {
         /* this is not the first nick supplied by this client, or it is the
@@ -203,9 +235,7 @@ static int handle_user(Client *c, const Message *m) {
  */
 static int handle_privmsg(Client *c, const Message *m) {
     if(m->nparams < 2)
-        return send_socket_messagev(c->sock, c->server->host, NULL, NULL,
-                ERR_NEEDMOREPARAMS, c->server->nick, "PRIVMSG",
-                "Not enough parameters", NULL);
+        return need_more_params(c, "PRIVMSG");
 
     /* attempt to find a channel with this name */
     Channel *chan = lookup_channel(c->server->channel_list, m->param[0]);
