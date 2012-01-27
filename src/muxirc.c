@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <time.h>
+#include <signal.h>
 
 #include "socket.h"
 #include "message.h"
@@ -50,6 +51,8 @@ void fatal(Server *s, const char *prefix, const char *msg) {
 
 int main() {
     Server serverstate;
+
+    signal(SIGPIPE, SIG_IGN);
 
     srand(time(NULL) ^ getpid());
 

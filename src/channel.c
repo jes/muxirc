@@ -79,8 +79,7 @@ Channel *lookup_channel(Channel *list, const char *channel) {
 
     for(chan = list;
         chan && strcasecmp(chan->name, channel) != 0;
-        chan = chan->next)
-        printf("  channel not %s!\n", chan->name);
+        chan = chan->next);
 
     return chan;
 }
@@ -131,8 +130,6 @@ void remove_client_from_channel(Client *c, Channel *chan) {
  */
 int client_join_channel(Client *c, const char *channel) {
     Channel *chan = lookup_channel(c->server->channel_list, channel);
-
-    printf("Attempting to join %s\n", channel);
 
     /* if the channel doesn't exist yet, ask to join it */
     if(!chan) {
@@ -206,13 +203,10 @@ int client_part_channel(Client *c, const char *channel) {
 void joined_channel(Server *s, const char *channel, const Message *m) {
     Channel *chan = lookup_channel(s->channel_list, channel);
 
-    fprintf(stderr, "Joined channel %s\n", channel);
-
     /* if the channel does not exist, make it
      * TODO: should this just instantly part instead?
      */
     if(!chan) {
-        printf("chan no existe!\n");
         chan = new_channel();
         chan->name = strdup(channel);
         prepend_channel(chan, &(s->channel_list));

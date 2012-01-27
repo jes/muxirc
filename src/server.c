@@ -244,18 +244,11 @@ int handle_server_message(Server *s, const Message *m) {
         }
     }
 
-    if(m->command >= FIRST_CMD && m->command < NCOMMANDS)
-        fprintf(stderr, "handled server message: %s\n",
-                command_string[m->command - FIRST_CMD]);
-    else
-        fprintf(stderr, "handled server message: %03d\n", m->command);
-
     /* call the handler if there is one, otherwise just ignore the message */
     if(m->command >= 0 && m->command < NCOMMANDS
             && message_handler[m->command]) {
         return message_handler[m->command](s, m);
     } else {
-        printf("not handling....!\n");
         /* pass un-handled messages to all clients */
         send_all_clients(s, m);
         return 0;
@@ -321,13 +314,9 @@ static int handle_nick(Server *s, const Message *m) {
 
 /* handle a topic change */
 static int handle_topic(Server *s, const Message *m) {
-    printf("m->nparams = %d\n", m->nparams);
-
     /* not enough parameters: fail */
     if((m->command != CMD_TOPIC && m->nparams < 3) || m->nparams < 2)
         return -1;
-
-    printf("accepted m->nparams\n");
 
     /* if this is a numeric topic message, there is an extra parameter
      * containing our nick
@@ -336,8 +325,6 @@ static int handle_topic(Server *s, const Message *m) {
 
     Channel *chan = lookup_channel(s->channel_list, param[0]);
 
-    printf("chan %s = %p\n", param[0], chan);
-
     /* not in the channel: fail */
     if(!chan)
         return -1;
@@ -345,8 +332,6 @@ static int handle_topic(Server *s, const Message *m) {
     /* update the topic */
     free(chan->topic);
     chan->topic = strdup(param[1]);
-
-    printf("sending channel a message\n");
 
     /* tell all clients in the channel */
     send_channel_message(chan, NULL, m);
