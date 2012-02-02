@@ -22,7 +22,7 @@ Channel *new_channel(void) {
 }
 
 /* remove the given channel from it's list (if any) and free it */
-void free_channel(Channel *chan) {
+void free_channel(Channel *chan, Channel **list) {
     free(chan->name);
     free(chan->topic);
     free(chan->client);
@@ -31,6 +31,9 @@ void free_channel(Channel *chan) {
         chan->prev->next = chan->next;
     if(chan->next)
         chan->next->prev = chan->prev;
+
+    if(list && *list == chan)
+        *list = chan->next;
 
     free(chan);
 }
@@ -120,7 +123,7 @@ void remove_client_from_channel(Client *c, Channel *chan) {
                 chan->name, NULL);
 
         /* remove this channel entirely */
-        free_channel(chan);
+        free_channel(chan, &(c->server->channel_list));
     }
 }
 

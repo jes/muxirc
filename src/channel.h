@@ -18,7 +18,7 @@ typedef struct Channel {
 enum { CHAN_JOINING, CHAN_JOINED };
 
 Channel *new_channel(void);
-void free_channel(Channel *chan);
+void free_channel(Channel *chan, Channel **list);
 Channel *prepend_channel(Channel *chan, Channel **list);
 Channel *add_channel_client(Channel *chan, Client *c);
 Channel *lookup_channel(Channel *list, const char *channel);
