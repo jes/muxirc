@@ -28,5 +28,10 @@ void irc_connect(Server *s, const char *server, const char *serverport,
 void handle_new_connection(Server *s);
 void handle_server_data(Server *s);
 int handle_server_message(Server *s, const struct Message *m);
+void send_all_string(Server *s, Client *except, const char *str,
+        ssize_t len);
+void send_all_message(Server *s, Client *except, const Message *m);
+void send_all_messagev(Server *s, Client *except, const char *nick,
+        const char *user, const char *host, int command, ...);
 
 #endif

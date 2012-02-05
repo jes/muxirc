@@ -10,8 +10,8 @@
 
 #include "socket.h"
 #include "message.h"
-#include "server.h"
 #include "client.h"
+#include "server.h"
 #include "channel.h"
 
 typedef int(*ClientMessageHandler)(Client *, const Message *);
@@ -49,8 +49,6 @@ Client *new_client(void) {
 
 /* remove c from its list and free it */
 void free_client(Client *c) {
-    remove_client_from_channels(c);
-
     if(c->prev)
         c->prev->next = c->next;
     if(c->next)
@@ -149,7 +147,8 @@ static int handle_join(Client *c, const Message *m) {
      * list
      */
 
-    return client_join_channel(c, m->param[0]);
+    join_channel(c->server, m->param[0]);
+    return 0;
 }
 
 /* part the channel - only actually part it if this was the last client in
@@ -163,7 +162,8 @@ static int handle_part(Client *c, const Message *m) {
      * list
      */
 
-    return client_part_channel(c, m->param[0]);
+    part_channel(c->server, m->param[0]);
+    return 0;
 }
 
 /* handle a password from the user by storing it (it is checked by the first
@@ -220,6 +220,8 @@ static int handle_user(Client *c, const Message *m) {
         if(send_socket_message(c->sock, c->server->welcomemsg[i]))
             break;
 
+    int r = i != c->server->nwelcomes;
+
     /* find out the user modes */
     send_socket_messagev(c->server->sock, NULL, NULL, NULL, CMD_MODE,
             c->server->nick, NULL);
@@ -227,7 +229,13 @@ static int handle_user(Client *c, const Message *m) {
     /* request an MOTD for this client */
     c->motd_state = MOTD_WANT;
 
-    return i != c->server->nwelcomes;
+    /* tell this client what channels he is in */
+    Channel *chan;
+    for(chan = c->server->channel_list; chan; chan = chan->next)
+        send_socket_messagev(c->sock, c->server->nick, c->server->user,
+                c->server->host, CMD_JOIN, chan->name, NULL);
+
+    return r;
 }
 
 /* handle private messages by forwarding them to the server and to other
@@ -237,14 +245,9 @@ static int handle_privmsg(Client *c, const Message *m) {
     if(m->nparams < 2)
         return need_more_params(c, "PRIVMSG");
 
-    /* attempt to find a channel with this name */
-    Channel *chan = lookup_channel(c->server->channel_list, m->param[0]);
-
-    /* if we are in a channel of this name, tell the other clients in that
-     * channel
-     */
-    if(chan)
-        send_channel_messagev(chan, c, c->server->nick, c->server->user,
+    /* if this is a channel message, tell the other clients */
+    if(m->param[0][0] == '#' || m->param[0][0] == '&')
+        send_all_messagev(c->server, c, c->server->nick, c->server->user,
                 c->server->host, m->command, m->param[0], m->param[1], NULL);
 
     /* always forward the message to the server */

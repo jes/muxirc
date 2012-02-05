@@ -9,14 +9,15 @@
 #include <netdb.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 
 #include "socket.h"
 #include "message.h"
-#include "server.h"
 #include "client.h"
+#include "server.h"
 #include "channel.h"
 
 typedef int(*ServerMessageHandler)(Server *, const Message *);
@@ -25,6 +26,7 @@ static ServerMessageHandler message_handler[NCOMMANDS];
 
 static int handle_ignore(Server *, const Message *);
 static int handle_join(Server *, const Message *);
+static int handle_part(Server *, const Message *);
 static int handle_nick(Server *, const Message *);
 static int handle_topic(Server *, const Message *);
 static int handle_welcome(Server *, const Message *);
@@ -34,6 +36,7 @@ static int handle_nickinuse(Server *, const Message *);
 /* initialise handler functions for server messages */
 void init_server_handlers(void) {
     message_handler[CMD_JOIN] = handle_join;
+    message_handler[CMD_PART] = handle_part;
     message_handler[CMD_NICK] = handle_nick;
     message_handler[CMD_TOPIC] = handle_topic;
     message_handler[RPL_TOPIC] = handle_topic;
@@ -269,11 +272,27 @@ static int handle_join(Server *s, const Message *m) {
         return -1;
 
     if(strcasecmp(m->nick, s->nick) == 0) {
-        joined_channel(s, m->param[0], m);
-    } else {
-        Channel *chan = lookup_channel(s->channel_list, m->param[0]);
-        send_channel_message(chan, NULL, m);
+        joined_channel(s, m->param[0]);
     }
+
+    send_all_message(s, NULL, m);
+
+    return 0;
+}
+
+/* handle a part message by telling all clients about the part, and parting it
+ * if the parter is us; return 0 on success and -1 on error
+ */
+static int handle_part(Server *s, const Message *m) {
+    /* fail if there are too few parameters or there is no nick */
+    if(!m->nick || m->nparams == 0)
+        return -1;
+
+    if(strcasecmp(m->nick, s->nick) == 0) {
+        parted_channel(s, m->param[0]);
+    }
+
+    send_all_message(s, NULL, m);
 
     return 0;
 }
@@ -333,8 +352,8 @@ static int handle_topic(Server *s, const Message *m) {
     free(chan->topic);
     chan->topic = strdup(param[1]);
 
-    /* tell all clients in the channel */
-    send_channel_message(chan, NULL, m);
+    /* tell all clients */
+    send_all_message(s, NULL, m);
 
     return 0;
 }
@@ -389,4 +408,54 @@ static int handle_nickinuse(Server *s, const Message *m) {
     /* otherwise, choose a random nick */
     return send_socket_messagev(s->sock, NULL, NULL, NULL, CMD_NICK,
             random_nick(), NULL);
+}
+
+/* send a string to all clients */
+void send_all_string(Server *s, Client *except, const char *str,
+        ssize_t len) {
+    Client *c;
+    for(c = s->client_list; c; c = c->next)
+        if(c != except)
+            send_socket_string(c->sock, str, len);
+}
+
+/* send a message to all clients */
+void send_all_message(Server *s, Client *except, const Message *m) {
+    size_t msglen;
+    char *strmsg = strmessage(m, &msglen);
+
+    send_all_string(s, except, strmsg, msglen);
+}
+
+/* send a message to all clients, in the form:
+ *  :nick!user@host <command> <params...>
+ */
+void send_all_messagev(Server *s, Client *except, const char *nick,
+        const char *user, const char *host, int command, ...) {
+    va_list argp;
+    Message *m = new_message();
+
+    if(nick)
+        m->nick = strdup(nick);
+    if(user)
+        m->user = strdup(user);
+    if(host)
+        m->host = strdup(host);
+    m->command = command;
+
+    va_start(argp, command);
+
+    char *str;
+    while(1) {
+        str = va_arg(argp, char *);
+        if(!str)
+            break;
+
+        add_message_param(m, strdup(str));
+    }
+
+    va_end(argp);
+
+    send_all_message(s, except, m);
+    free_message(m);
 }
