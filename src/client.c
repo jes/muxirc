@@ -231,9 +231,17 @@ static int handle_user(Client *c, const Message *m) {
 
     /* tell this client what channels he is in */
     Channel *chan;
-    for(chan = c->server->channel_list; chan; chan = chan->next)
+    for(chan = c->server->channel_list; chan; chan = chan->next) {
         send_socket_messagev(c->sock, c->server->nick, c->server->user,
                 c->server->host, CMD_JOIN, chan->name, NULL);
+
+        /* also get topic and names */
+        /* TODO: keep track of these and send it only to this client */
+        send_socket_messagev(c->server->sock, NULL, NULL, NULL,
+                CMD_TOPIC, chan->name, NULL);
+        send_socket_messagev(c->server->sock, NULL, NULL, NULL,
+                CMD_NAMES, chan->name, NULL);
+    }
 
     return r;
 }
