@@ -29,6 +29,7 @@ static int handle_join(Server *, const Message *);
 static int handle_part(Server *, const Message *);
 static int handle_nick(Server *, const Message *);
 static int handle_topic(Server *, const Message *);
+static int handle_ping(Server *, const Message *);
 static int handle_welcome(Server *, const Message *);
 static int handle_motd(Server *, const Message *);
 static int handle_nickinuse(Server *, const Message *);
@@ -41,6 +42,7 @@ void init_server_handlers(void) {
     message_handler[CMD_TOPIC] = handle_topic;
     message_handler[RPL_TOPIC] = handle_topic;
     message_handler[CMD_CAP] = handle_ignore;
+    message_handler[CMD_PING] = handle_ping;
     message_handler[RPL_WELCOME] = handle_welcome;
     message_handler[RPL_YOURHOST] = handle_welcome;
     message_handler[RPL_CREATED] = handle_welcome;
@@ -354,6 +356,18 @@ static int handle_topic(Server *s, const Message *m) {
 
     /* tell all clients */
     send_all_message(s, NULL, m);
+
+    return 0;
+}
+
+/* handle a PING by replying */
+static int handle_ping(Server *s, const Message *m) {
+    Message *pong = copy_message(m);
+    pong->command = CMD_PONG;
+
+    send_socket_message(s->sock, pong);
+
+    free_message(pong);
 
     return 0;
 }
